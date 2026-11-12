@@ -70,6 +70,7 @@
 # Semilla fija y versiones registradas: la corrida tiene que poder repetirse.
 
 # %%
+import gc
 import json
 import sys
 import time
@@ -876,9 +877,11 @@ pre_e1 = Pipeline([
     ("log", FunctionTransformer(log_con_signo, feature_names_out="one-to-one")),
     ("escalar", StandardScaler()),
 ])
-Xe1_ajuste = pre_e1.fit_transform(ben_ajuste[VARIABLES])      # SOLO benignos
-Xe1_calib = pre_e1.transform(ben_calib[VARIABLES])
-Xe1_test = pre_e1.transform(te_e1[VARIABLES])
+# float32 y no float64: la mitad de memoria y ninguna diferencia practica en
+# datos que vienen de contadores de red. En un portatil de 16 GB esto importa.
+Xe1_ajuste = pre_e1.fit_transform(ben_ajuste[VARIABLES]).astype(np.float32)   # SOLO benignos
+Xe1_calib = pre_e1.transform(ben_calib[VARIABLES]).astype(np.float32)
+Xe1_test = pre_e1.transform(te_e1[VARIABLES]).astype(np.float32)
 ye1_test = te_e1["es_ataque"].to_numpy()
 
 print("ETAPA 1 - deteccion de anomalias")
@@ -912,10 +915,15 @@ pre_e2 = Pipeline([
     ("escalar", QuantileTransformer(output_distribution="normal", n_quantiles=1000,
                                     random_state=cfg.SEMILLA, subsample=200_000)),
 ])
-Xe2_tr = pre_e2.fit_transform(e2_tr[VARIABLES])
-Xe2_te = pre_e2.transform(e2_te[VARIABLES])
+Xe2_tr = pre_e2.fit_transform(e2_tr[VARIABLES]).astype(np.float32)
+Xe2_te = pre_e2.transform(e2_te[VARIABLES]).astype(np.float32)
 ye2_tr = e2_tr["familia"].to_numpy()
 ye2_te = e2_te["familia"].to_numpy()
+
+# Las copias intermedias del DataFrame ya cumplieron: `tr` y `te` juntas pesan
+# casi tanto como `df`. Se liberan antes de entrenar, que es donde mas aprieta.
+del tr, te, te_ataques, te_benignos, benigno_tr
+gc.collect()
 
 print("\nETAPA 2 - clasificacion de la familia")
 print(f"  train : {Xe2_tr.shape[0]:>8,} flujos de ataque")
@@ -1742,7 +1750,7 @@ print(f"Etapa 1: {NOMBRE_E1_FINAL}, umbral = {umbral_e1:.4f} "
 # Cada etapa ajusto su propio QuantileTransformer con datos distintos (la 1 solo
 # con benignos, la 2 solo con ataques), asi que pasarle a la etapa 2 una matriz
 # escalada por la etapa 1 seria un error silencioso: no falla, solo da peor.
-Xe2_desde_test = pre_e2.transform(te_e1[VARIABLES])
+Xe2_desde_test = pre_e2.transform(te_e1[VARIABLES]).astype(np.float32)
 
 # Cascada sobre todo el test de la etapa 1 (benignos + ataques)
 resultado = np.full(len(te_e1), "Sin alerta", dtype=object)
@@ -1914,11 +1922,26 @@ guardar("17_prueba_de_fuego")
 plt.show()
 
 # %% [markdown]
-# > **Esto es lo que justifica las dos etapas.** El monolítico gana en los ataques
-# > que ya conoce —es supervisado y tiene más información—. Pero ante un ataque
-# > nuevo **solo tiene dos salidas, y las dos son malas**: ignorarlo como benigno
-# > o ponerle un nombre falso. La cascada tiene una tercera salida, que es la
-# > honesta, y es la única de las tres que le sirve a un analista.
+# > **Hay que leer esta tabla con cuidado, porque no dice lo que uno querría.**
+# >
+# > El monolítico detecta el 89,9% de los ataques y la cascada el 22,2%. Pero el
+# > monolítico lo consigue **alertando sobre el 23,9% del tráfico benigno**: en una
+# > red de un millón de flujos diarios son ~240.000 alertas falsas al día. Ningún
+# > SOC opera así. La cascada está fijada en 1% de falsas alarmas por diseño, así
+# > que los dos números **no son comparables tal cual**: no están en el mismo punto
+# > de operación.
+# >
+# > Y ante el ataque nunca visto, el resultado honesto es este: el monolítico
+# > **le pone un nombre falso al 81%** de los flujos de `Botnet`. La cascada casi
+# > no inventa nada (0,5%), pero **tampoco dice `Desconocido`: los ignora como
+# > benignos.** No es que su tercera salida sea mejor aquí — es que la etapa 1 no
+# > alcanza a marcar esos flujos, así que nunca llegan a la etapa 2 donde está el
+# > mecanismo de rechazo.
+# >
+# > El mecanismo **sí funciona**, y §7 lo demuestra: sobre los flujos que sí
+# > llegan a la etapa 2, el 99,5% de `Botnet` se reconoce como `Desconocido`. El
+# > cuello de botella es la detección, no el nombramiento. **Ese es el hallazgo, y
+# > es el que marca el trabajo futuro.**
 #
 # ## 8.2 ¿Por qué marcó este flujo? Explicabilidad
 #
@@ -2129,10 +2152,23 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 # logaritmo con signo + estandarización fue la decisión que más movió la aguja
 # en toda la etapa 1. Está en §4.1.
 #
-# **2. Las dos etapas se justifican en la prueba de fuego, no en las métricas.**
-# El clasificador monolítico de 7 clases *gana* en los ataques que ya conoce.
-# Pero ante uno nuevo solo puede ignorarlo o bautizarlo mal. La cascada puede
-# decir `Desconocido`, y en seguridad esa tercera respuesta es la que vale.
+# **2. El cuello de botella es la etapa 1, no la etapa 2.** Este es el resultado
+# que más nos sorprendió y el que hay que decir en voz alta.
+#
+# - La **etapa 2 funciona muy bien**: F1 macro de 0,977 nombrando la familia, y
+#   el mecanismo de rechazo manda al 90,6% de las familias ocultas a
+#   `Desconocido` (§7). Nombrar el ataque es, resulta, la parte fácil.
+# - La **etapa 1 es la que limita todo**: con un presupuesto de 1% de falsas
+#   alarmas detecta el 22,2% de los ataques, frente al 77,0% del Random Forest
+#   supervisado. Como el sistema es una cascada, **lo que la etapa 1 no marca
+#   nunca recibe nombre**, por muy bueno que sea el clasificador que sigue.
+#
+# La consecuencia es incómoda y la reportamos igual: en la prueba de fuego la
+# cascada casi no usa su salida `Desconocido`, porque los flujos de `Botnet` ni
+# siquiera se marcan como anómalos. Lo que sí queda demostrado es que **no
+# inventa nombres** (0,5% contra el 81% del monolítico), y que el rechazo
+# funciona cuando se lo ejercita (§7). La idea de las dos etapas se sostiene;
+# lo que falta es un detector de anomalías mejor, no un clasificador mejor.
 #
 # **3. `Dst Port` era una fuga, no una variable.** Dos columnas (puerto y
 # protocolo) bastaban para "clasificar" casi todo. Quitarla bajó nuestras
@@ -2164,13 +2200,21 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 #
 # ## Trabajo futuro
 #
-# 1. **Validar en otro dataset.** El candidato natural es BigFlow-NIDS
+# Ordenado por lo que más movería la aguja, que es lo que dice el punto 2 de
+# arriba: **todo lo que valga la pena hacer está en la etapa 1.**
+#
+# 1. **Mejorar el detector de anomalías**, que es el cuello de botella medido.
+#    Tres caminos concretos: un autoencoder de verdad (PyTorch/Keras, con
+#    arquitectura y regularización ajustadas, en vez de aproximarlo con un
+#    `MLPRegressor`); un ensamble que combine las puntuaciones de LOF, autoencoder
+#    e Isolation Forest, que fallan en flujos distintos; y modelar el tráfico
+#    benigno **por servicio** en vez de con un solo modelo global — el EDA ya
+#    mostró que lo normal son varias nubes, no una.
+# 2. **Validar en otro dataset.** El candidato natural es BigFlow-NIDS
 #    (Mendeley, 2026): 66.9 M de flujos NetFlow de 4 fuentes distintas. Permitiría
 #    entrenar en una red y evaluar en otra, que es la prueba que de verdad falta.
-# 2. **Reentrenamiento continuo** de la etapa 1 con ventanas deslizantes, para
+# 3. **Reentrenamiento continuo** de la etapa 1 con ventanas deslizantes, para
 #    medir y absorber la deriva de concepto.
-# 3. **Autoencoder de verdad** (PyTorch/Keras) con arquitectura y regularización
-#    ajustadas, en vez de aproximarlo con un `MLPRegressor`.
 # 4. **Agrupar las alertas en incidentes.** Un DDoS genera miles de flujos
 #    anómalos que son *un* ataque. Agruparlos por origen y ventana de tiempo
 #    reduciría la carga del analista mucho más que mejorar el F1.

@@ -25,8 +25,8 @@ N_LOF = 50_000           # Local Outlier Factor
 N_AUTOENCODER = 100_000  # autoencoder (MLPRegressor)
 N_E2_TRAIN = 120_000     # etapa 2: arboles y boosting
 N_E2_LENTOS = 40_000     # etapa 2: kNN y MLP
-N_TEST_BENIGNO = 150_000 # tope de benignos en test (los ataques se usan todos)
-N_BUSQUEDA = 60_000      # submuestra para la busqueda de hiperparametros
+N_TEST_BENIGNO = 60_000  # tope de benignos en test (los ataques se usan todos)
+N_BUSQUEDA = 40_000      # submuestra para la busqueda de hiperparametros
 
 # Punto de operacion de la etapa 1: presupuesto de falsas alarmas.
 FPR_OBJETIVO = 0.01      # 1% de los flujos benignos puede generar alerta

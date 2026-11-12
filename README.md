@@ -304,7 +304,93 @@ gana en los ataques que ya conoce. Pero ante uno nuevo **solo tiene dos salidas 
 las dos son malas**: ignorarlo como benigno o ponerle un nombre falso. La cascada
 tiene una tercera, que es la honesta.
 
-Los números están en §7 y §8.1 del notebook.
+---
+
+## Resultados
+
+Test: **208.314 flujos** (60.000 benignos + 148.314 ataques), partición temporal
+dentro de cada (día, familia). Umbrales fijados sobre calibración, nunca sobre test.
+
+### Etapa 1 — detección de anomalías
+
+| Modelo | ROC-AUC | PR-AUC | Recall @ FPR 1% |
+|---|---:|---:|---:|
+| *Random Forest (referencia supervisada)* | *0.945* | *0.979* | ***77,0%*** |
+| **Local Outlier Factor** ← el que va en la cascada | 0.778 | 0.901 | **22,2%** |
+| Autoencoder | 0.826 | 0.901 | 7,4% |
+| Isolation Forest | 0.621 | 0.778 | 5,4% |
+| One-Class SVM | 0.410 | 0.690 | 7,2% |
+
+La brecha entre **22,2% y 77,0%** es el número más importante del trabajo: es el
+**precio de no tener ataques etiquetados**, medido y no estimado.
+
+> El escalado resultó tan determinante como el modelo. Con `QuantileTransformer`
+> ajustado solo con tráfico benigno, el One-Class SVM daba ROC-AUC **0,38 — peor
+> que lanzar una moneda**, porque esa transformación recorta los valores fuera
+> del rango normal, que es justo la señal a detectar. Con logaritmo con signo +
+> estandarización, el Isolation Forest pasó de 0,538 a 0,621 de ROC-AUC y la
+> cascada de 2,3% a 22,2% de recall.
+
+### Etapa 2 — clasificación de la familia
+
+| Modelo | Accuracy | **F1 macro** | Acc. balanceada |
+|---|---:|---:|---:|
+| **Random Forest + GridSearch** | — | **0.9765** | — |
+| LightGBM | 0.9685 | 0.9688 | 0.9724 |
+| XGBoost | 0.9696 | 0.9676 | 0.9677 |
+| Random Forest | 0.9661 | 0.9573 | 0.9635 |
+| k-NN | 0.9650 | 0.9511 | 0.9520 |
+| MLP | 0.9435 | 0.8998 | 0.9061 |
+| Regresión logística *(línea base)* | 0.9270 | 0.8280 | 0.9345 |
+
+La distancia contra la regresión logística (0.977 vs 0.828 de F1 macro) es la
+que justifica usar algo complejo.
+
+### Ataques desconocidos — dejar una familia fuera
+
+| Familia oculta | → `Desconocido` (acierto) | → nombre falso | Coste: rechazo indebido |
+|---|---:|---:|---:|
+| Fuerza bruta | **99,7%** | 0,3% | 14,3% |
+| Botnet | **99,5%** | 0,5% | 16,2% |
+| Infiltración | **98,6%** | 1,4% | 14,9% |
+| DDoS | **96,1%** | 3,9% | 12,5% |
+| DoS | **89,5%** | 10,5% | 8,5% |
+| Ataque web | 60,5% | 39,5% | 14,2% |
+
+Promedio: **90,6%** de los ataques nunca vistos se reconocen como desconocidos
+en vez de recibir una etiqueta inventada.
+
+### Sistema completo
+
+| | |
+|---|---|
+| Alertas generadas | 33.557 (16,1% del tráfico) |
+| Ataques detectados | 32.855 de 148.314 — **22,2%** |
+| …y además con familia correcta | 31.451 — **21,2%** |
+| Precisión de las alertas | **97,9%** son ataques reales |
+
+### El hallazgo incómodo
+
+Comparado contra un clasificador monolítico de 7 clases, ante `Botnet` oculta
+a ambos:
+
+| | Ignora como benigno | **Le pone un nombre FALSO** | Marca `Desconocido` |
+|---|---:|---:|---:|
+| Monolítico (7 clases) | 19,0% | **81,0%** | 0,0% |
+| Cascada (2 etapas) | 99,5% | **0,5%** | 0,0% |
+
+La cascada **no inventa nombres**, pero tampoco llega a decir `Desconocido`: la
+etapa 1 no marca esos flujos, así que nunca alcanzan la etapa 2 donde vive el
+mecanismo de rechazo. Ese mecanismo **sí funciona** —§7 lo demuestra al 99,5%—
+pero el cuello de botella está antes.
+
+**Conclusión del proyecto: nombrar el ataque es la parte fácil; detectarlo sin
+etiquetas es la difícil.** Todo el trabajo futuro que vale la pena está en la
+etapa 1, no en la 2.
+
+> El monolítico detecta el 89,9% de los ataques, pero alertando sobre el **23,9%
+> del tráfico benigno**. La cascada está fijada en 1% por diseño. Los dos números
+> no son comparables tal cual: no están en el mismo punto de operación.
 
 ---
 
