@@ -1,115 +1,90 @@
-# Cronograma — Proyecto final MLEA_M
+# Cronograma — proyecto final MLEA_M
 
-**Sustentación: viernes 20 de noviembre de 2026, en el horario de clase.**
-Hoy es jueves 12. Quedan 8 días.
-
-**Equipo:** Hildebrando, Isaac, Jared, Angélica.
+sustentación: **viernes 20 de noviembre**, en el horario de clase. hoy es jueves 12, quedan 8 días.
+equipo: hildebrando, isaac, jared, angélica.
 
 ---
 
-## ⚠️ Antes que nada: somos 4 y la guía dice máximo 3
+## antes que nada: somos 4 y la guía dice máximo 3
 
-La guía del proyecto, sección 2, dice textualmente: *"Puede trabajar en grupos de
-máximo 3 personas"*. **Hay que preguntarle al profesor esta semana**, no el 19.
-Si no deja, las opciones son partirse en 3 + 1 o pedir excepción por escrito.
-Mientras se resuelve, el cronograma asume 4 personas y el reparto se ajusta
-fácil si toca.
-
----
-
-## Dónde estamos hoy (12 de noviembre)
-
-Lo que ya está hecho y corriendo:
-
-- Descarga y muestreo del dataset (16.2 M de flujos → 1.42 M de trabajo)
-- Consolidación, deduplicado y partición train/test
-- Notebook completo con las 10 secciones, ejecutado de punta a punta
-- 11 modelos entrenados: 5 en la etapa 1, 6 en la etapa 2
-- Búsqueda de hiperparámetros, experimento de conjunto abierto y cascada completa
-
-Lo que falta, y es el trabajo de estos 8 días:
-
-- **Que cada uno entienda su sección de verdad**, no que la lea. El profesor
-  puede preguntar cualquier cosa y los grupos se escogen al azar.
-- Las diapositivas
-- Ensayar con cronómetro hasta que quepa en 12 minutos
-- Grabar el video de respaldo (la guía lo permite si no se puede sustentar)
+sección 2 de la guía, textual: *"Puede trabajar en grupos de máximo 3 personas"*.
+**hay que preguntarle al profesor esta semana, no el 19.** si no deja, toca
+partirse en 3 + 1 o pedir excepción por escrito. el cronograma asume 4 y se
+ajusta fácil si toca.
 
 ---
 
-## Día por día
+## quién lleva qué
 
-| Día | Qué se hace | Quién | Qué queda entregado |
-|---|---|---|---|
-| **jue 12** | Clonar el repo, correr el notebook completo cada uno en su máquina. Confirmar que a todos les da lo mismo. Preguntarle al profe lo de los 4 integrantes. | todos | Todos con el entorno andando |
-| **vie 13** | Repartirse las secciones (ver abajo). Cada uno lee su parte del notebook línea por línea y anota lo que no entiende. | todos | Lista de dudas por persona |
-| **sáb 14** | Resolver las dudas entre todos. Es la sesión más importante de la semana: aquí se decide si el grupo puede defender el trabajo o no. | todos | Cero dudas abiertas |
-| **dom 15** | Cada uno escribe el guion de su bloque: qué dice, en qué orden, con qué número cierra. | todos | 4 guiones escritos |
-| **lun 16** | Diapositivas. Una plantilla común, cada uno llena sus láminas con las figuras de `reports/figuras/`. | todos | Borrador completo del deck |
-| **mar 17** | Primer ensayo completo con cronómetro. Casi seguro se pasa de 12 min: recortar. | todos | Deck recortado, tiempo medido |
-| **mié 18** | Segundo ensayo. Rondas de preguntas cruzadas entre nosotros: cada uno le pregunta al otro lo más incómodo de su sección. | todos | Respuestas preparadas |
-| **jue 19** | Ensayo final. Grabar el video de 12 min como respaldo. Subir el notebook a la tarea de Teams. | todos | Video grabado + notebook entregado |
-| **vie 20** | **Sustentación.** | todos | — |
+repartido por peso en la rúbrica, no por número de secciones.
 
----
+| | bloque | secciones | puntos | minutos |
+|---|---|---|---|---|
+| **angélica** | problema y datos | §1–§2 | 8 (problema 4 + datos 4) | 2:30 |
+| **jared** | eda | §3 | 8 (eda) | 3:00 |
+| **isaac** | modelos y métricas | §4–§5 | 20 (modelos 14 + métricas 6) | 3:30 |
+| **hildebrando** | hiperparámetros, desconocidos, cascada y cierre | §6–§10 | 8 (hiperparám. 4 + aplicación 4) | 3:00 |
 
-## Reparto de la sustentación (12 minutos)
-
-Repartido por peso en la rúbrica, no por número de secciones.
-
-| # | Bloque | Secciones | Puntos de la rúbrica | Tiempo | Responsable |
-|---|---|---|---|---|---|
-| 1 | **Problema y datos** — qué se resuelve, por qué dos etapas, de dónde salen los datos y qué defectos tienen | §1, §2 | 8 pts (Problema 4 + Datos 4) | 2:30 | **Angélica** |
-| 2 | **EDA** — los 5 insights, y sobre todo la fuga de `Dst Port` | §3 | 8 pts (EDA) | 3:00 | **Jared** |
-| 3 | **Modelos y métricas** — los 5 de la etapa 1, los 6 de la etapa 2, por qué F1 macro y no accuracy | §4, §5 | 20 pts (Modelos 14 + Métricas 6) | 3:30 | **Isaac** |
-| 4 | **Hiperparámetros, ataques desconocidos, cascada y cierre** | §6–§10 | 8 pts (Hiperparámetros 4 + Aplicación 4) | 3:00 | **Hildebrando** |
-
-Total: 12:00. Los 6 puntos restantes (Código 3 + Presentación 3) son de todos.
-
-**El reparto se puede cambiar**, pero que cada uno escoja su bloque el viernes 13
-y no el miércoles 18.
+los 6 puntos que faltan (código 3 + presentación 3) son de los cuatro.
 
 ---
 
-## Lo que tiene que decir cada bloque (resumen de una línea)
+## día a día
 
-1. **Angélica** — "Un SOC recibe millones de flujos al día y las firmas solo
-   detectan lo ya catalogado. Y este dataset famoso tiene 10 defectos que
-   encontramos."
-2. **Jared** — "Dos columnas bastaban para clasificar casi todo. Era fuga, no
-   señal. La quitamos y nuestras métricas bajaron: por eso son creíbles."
-3. **Isaac** — "Entrenamos 11 modelos. El mejor sin etiquetas es Isolation
-   Forest, el mejor con etiquetas es LightGBM, y la diferencia entre los dos es
-   el precio exacto de no tener ataques etiquetados."
-4. **Hildebrando** — "Un clasificador normal ante un ataque nuevo solo puede
-   ignorarlo o bautizarlo mal. El nuestro puede decir que no sabe, y eso es lo
-   que justifica las dos etapas."
+| día | hildebrando | isaac | jared | angélica |
+|---|---|---|---|---|
+| **jue 12 (hoy)** | repo en github, pipeline de datos andando y notebook corriendo entero. preguntarle al profe lo de los 4 integrantes | clonar y correr `ingest.py` + `preparar.py` esta noche. tiene que dar **1.420.028 filas**; si da otra cosa, avisar de una | clonar y dejar el entorno probado. abrir `reports/figuras/` y saber qué figura es cuál | clonar y dejar el entorno probado. leerse la guía del proyecto con la rúbrica al lado, que es la que nos califica |
+| **vie 13** | §6–§10. el hito es explicar el experimento de dejar una familia fuera sin mirar el notebook | §4–§5. una frase por modelo: qué hace, qué ventaja, qué limitación. son 11 modelos | §3. tiene que poder defender la fuga de `Dst Port` con el número del experimento en la mano | §1–§2. los defectos del dataset de memoria, y por qué esto es clasificación **y** detección de anomalías a la vez |
+| **sáb 14** | escribe las 5 preguntas más incómodas de su bloque y las contesta por escrito | lo mismo con el suyo: la peor es *"¿por qué tu accuracy es tan alta?"* | lo mismo. la peor: *"¿y si el profe dice que quitar `Dst Port` fue botar información?"* | lo mismo. la peor: *"¿por qué no usaron las 16 millones de filas?"* |
+
+> **cierre del sábado, los cuatro: sesión de dudas cruzada.** cada uno responde las preguntas de los otros tres. nadie sale con dudas abiertas de su sección. esta es la sesión que decide si el grupo puede defender el trabajo o no.
+
+| día | hildebrando | isaac | jared | angélica |
+|---|---|---|---|---|
+| **dom 15** | guion de §6–§10, cerrando con el número de la prueba de fuego | guion de §4–§5, cerrando con la brecha entre el no supervisado y el supervisado | guion de §3, cerrando con el experimento de `Dst Port` | guion de §1–§2, cerrando con los 10 defectos del dataset |
+| **lun 16** | monta la plantilla del deck y llena sus láminas | sus láminas: tabla de los 11 modelos + matriz de confusión | sus láminas: los 6 insights del eda, una figura por insight | sus láminas: el diagrama de las dos etapas y la tabla de defectos |
+
+> **cierre del lunes: deck completo en borrador.** aunque esté feo. de aquí en adelante solo se recorta y se pule.
+
+| día | hildebrando | isaac | jared | angélica |
+|---|---|---|---|---|
+| **mar 17** | primer ensayo completo con cronómetro. casi seguro nos pasamos: él lleva el reloj y marca dónde se recorta | recorta su bloque, que es el más largo (3:30) | recorta. las figuras que no se expliquen en 20 segundos se van | recorta. la tabla de 10 defectos no se lee entera, se nombran 3 |
+| **mié 18** | segunda ronda de preguntas cruzadas, ahora en frío y sin avisar quién responde | ídem | ídem | ídem |
+
+> **cierre del miércoles: deck congelado.** nada nuevo entra después. de aquí solo se ensaya.
+
+| día | hildebrando | isaac | jared | angélica |
+|---|---|---|---|---|
+| **jue 19** | ensayo final cronometrado. graba el video de respaldo de 12 min y lo deja montado | sube el notebook a la tarea de Teams y confirma que quedó | revisa que las figuras del deck sean las mismas que las del notebook entregado | lee la rúbrica punto por punto contra el deck y dice qué falta |
+| **vie 20** | sustenta §6–§10 | sustenta §4–§5 | sustenta §3 | sustenta §1–§2 |
 
 ---
 
-## Preguntas que el profesor va a hacer (prepararlas)
+## las preguntas que va a hacer el profesor
 
-Cada una tiene su respuesta en el notebook. Hay que saber **en qué sección está**.
+cada una tiene respuesta en el notebook. lo importante es saber **en qué sección está**.
 
-| Pregunta probable | Dónde está la respuesta |
+| pregunta | dónde está |
 |---|---|
-| ¿Por qué no usaron el dataset completo? | §2 — disco de 23 GB y archivo de 3.8 GB; se cuenta la distribución real antes de muestrear |
-| ¿Por qué accuracy tan alta? ¿No hay sobreajuste? | §3.1 y §5.2 — por eso se decide con F1 macro; el 83% benigno hace la accuracy inútil |
-| ¿Por qué quitaron `Dst Port`? | §3.5 — hay un experimento que lo mide: 2 columnas igualan a 48 |
-| ¿Por qué no un split aleatorio? | §3.9 — 28.8% de duplicados exactos; al azar se inflan las métricas |
-| ¿Por qué dos etapas y no un modelo? | §8.1 — está la comparación contra el monolítico de 7 clases |
-| ¿Por qué falla `Infiltracion`? | §3.7, §3.8 y §10 — se superpone con el tráfico benigno; lo avisó el K-Means |
-| ¿Cómo eligieron el umbral? | §5.1 (FPR 1% sobre calibración) y §7 (τ por cobertura del 95%) |
-| ¿Qué pasa si llega un ataque nuevo? | §7 — experimento de dejar una familia fuera |
+| ¿por qué no usaron el dataset completo? | §2 — disco de 23 gb y un archivo de 3.8 gb; se cuenta la distribución real antes de muestrear |
+| ¿por qué esa accuracy tan alta? ¿no hay sobreajuste? | §3.1 y §5.2 — con 83% de tráfico benigno la accuracy no sirve; se decide con f1 macro |
+| ¿por qué quitaron `Dst Port`? | §3.5 — hay un experimento que lo mide: 2 columnas igualan a 48 |
+| ¿por qué no un split aleatorio? | §3.9 y §3.10 — 28,8% de duplicados exactos; al azar las métricas se inflan solas |
+| ¿por qué dos etapas y no un modelo? | §8.1 — está la comparación contra el monolítico de 7 clases |
+| ¿por qué falla `Infiltracion`? | §3.7, §3.8 y §10 — se superpone con el tráfico benigno; lo avisó el k-means antes de modelar |
+| ¿cómo eligieron los umbrales? | §5.1 (fpr 1% sobre calibración) y §7 (τ por cobertura del 95%) |
+| ¿y si llega un ataque nuevo? | §7 — el experimento de dejar una familia fuera |
+| ¿por qué agruparon 14 etiquetas en 6 familias? | §3.2, y §3.9 lo refuerza: dos ataques quedaron en ~50 flujos tras deduplicar |
 
 ---
 
-## Riesgos
+## riesgos
 
-| Riesgo | Qué hacer |
+| riesgo | qué hacemos |
 |---|---|
-| Somos 4 y la guía dice 3 | Preguntar esta semana, no el 19 |
-| Nos pasamos de 12 minutos | Ensayo del mar 17 con cronómetro; es lo primero que se recorta |
-| Preguntan algo de una sección que no es la mía | Sesión de preguntas cruzadas del mié 18 |
-| Se cae el internet / no se puede sustentar | Video grabado el jue 19 |
-| Alguien no puede correr el notebook | `requirements.txt` + el jue 12 todos lo corren |
+| somos 4 y la guía dice 3 | preguntar **esta semana**, no el 19 |
+| nos pasamos de 12 minutos | ensayo del martes con cronómetro; lo primero que se recorta son las figuras del eda |
+| preguntan de una sección que no es la mía | las dos rondas de preguntas cruzadas, sábado y miércoles |
+| no se puede sustentar en vivo | video grabado el jueves 19 |
+| a alguien no le corre el notebook | `requirements.txt`, y el jueves 12 todos lo corren |
+| los grupos se escogen al azar | la guía lo dice; hay que estar listos desde el lunes, no desde el jueves |
