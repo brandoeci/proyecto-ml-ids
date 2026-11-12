@@ -64,12 +64,10 @@ tiene ataques etiquetados de su propia red**.
 sustentación: **viernes 20 de noviembre**, en el horario de clase. hoy es jueves 12, quedan 8 días.
 equipo: hildebrando, isaac, jared, angélica.
 
-## antes que nada: somos 4 y la guía dice máximo 3
+## lo de ser 4: resuelto
 
-sección 2 de la guía, textual: *"Puede trabajar en grupos de máximo 3 personas"*.
-**hay que preguntarle al profesor esta semana, no el 19.** si no deja, toca
-partirse en 3 + 1 o pedir excepción por escrito. el cronograma asume 4 y se
-ajusta fácil si toca.
+la guía dice *"grupos de máximo 3 personas"*, pero **el profesor nos autorizó
+los 4**. el reparto de abajo queda firme.
 
 ## quién lleva qué
 
@@ -88,7 +86,7 @@ los 6 puntos que faltan (código 3 + presentación 3) son de los cuatro.
 
 | día | hildebrando | isaac | jared | angélica |
 |---|---|---|---|---|
-| **jue 12 (hoy)** | repo en github, pipeline de datos andando y notebook corriendo entero. preguntarle al profe lo de los 4 integrantes | clonar y correr `ingest.py` + `preparar.py` esta noche. tiene que dar **1.420.028 filas**; si da otra cosa, avisar de una | clonar y dejar el entorno probado. abrir `reports/figuras/` y saber qué figura es cuál | clonar y dejar el entorno probado. leerse la guía del proyecto con la rúbrica al lado, que es la que nos califica |
+| **jue 12 (hoy)** | repo en github, pipeline de datos andando y notebook corriendo entero. confirmado con el profe que podemos ser 4 | clonar y correr `ingest.py` + `preparar.py` esta noche. tiene que dar **1.420.028 filas**; si da otra cosa, avisar de una | clonar y dejar el entorno probado. abrir `reports/figuras/` y saber qué figura es cuál | clonar y dejar el entorno probado. leerse la guía del proyecto con la rúbrica al lado, que es la que nos califica |
 | **vie 13** | §6–§10. el hito es explicar el experimento de dejar una familia fuera sin mirar el notebook | §4–§5. una frase por modelo: qué hace, qué ventaja, qué limitación. son 11 modelos | §3. tiene que poder defender la fuga de `Dst Port` con el número del experimento en la mano | §1–§2. los defectos del dataset de memoria, y por qué esto es clasificación **y** detección de anomalías a la vez |
 | **sáb 14** | escribe las 5 preguntas más incómodas de su bloque y las contesta por escrito | lo mismo con el suyo: la peor es *"¿por qué tu accuracy es tan alta?"* | lo mismo. la peor: *"¿y si el profe dice que quitar `Dst Port` fue botar información?"* | lo mismo. la peor: *"¿por qué no usaron las 16 millones de filas?"* |
 
@@ -134,7 +132,6 @@ cada una tiene respuesta en el notebook. lo importante es saber **en qué secci�
 
 | riesgo | qué hacemos |
 |---|---|
-| somos 4 y la guía dice 3 | preguntar **esta semana**, no el 19 |
 | nos pasamos de 12 minutos | ensayo del martes con cronómetro; lo primero que se recorta son las figuras del eda |
 | preguntan de una sección que no es la mía | las dos rondas de preguntas cruzadas, sábado y miércoles |
 | no se puede sustentar en vivo | video grabado el jueves 19 |
