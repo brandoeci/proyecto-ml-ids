@@ -121,6 +121,51 @@ dataset **codifica qué experimento se estaba corriendo**. En una red real el
 atacante elige el puerto. Se excluyó del modelo final — una decisión que *baja*
 las métricas reportadas y las vuelve creíbles.
 
+### El otro hallazgo: dos ataques son casi una sola fila repetida
+
+El 28,8% de duplicados exactos es el número agregado, y esconde lo importante:
+**la tasa no está repartida de forma pareja entre los ataques, ni de lejos.**
+
+| Etiqueta | En la muestra | Tras deduplicar | % duplicados |
+|---|---:|---:|---:|
+| `FTP-BruteForce` | 100.000 | **53** | **99,95%** |
+| `DoS attacks-SlowHTTPTest` | 100.000 | **54** | **99,95%** |
+| `DDOS attack-HOIC` | 100.000 | 46.396 | 53,60% |
+| `SSH-Bruteforce` | 100.000 | 50.199 | 49,80% |
+| `Bot` | 100.000 | 50.955 | 49,05% |
+| `DoS attacks-Hulk` | 100.000 | 52.432 | 47,57% |
+| `Benign` | 1.077.982 | 925.666 | 14,13% |
+| `Infilteration` | 161.934 | 140.610 | 13,17% |
+| `DoS attacks-Slowloris` | 10.990 | 9.712 | 11,63% |
+| `Brute Force -Web` | 611 | 553 | 9,49% |
+| `SQL Injection` | 87 | 84 | 3,45% |
+| `Brute Force -XSS` | 230 | 228 | 0,87% |
+| `DoS attacks-GoldenEye` | 41.508 | 41.392 | 0,28% |
+| `DDoS attacks-LOIC-HTTP` | 100.000 | 99.964 | 0,04% |
+| `DDOS attack-LOIC-UDP` | 1.730 | 1.730 | **0,00%** |
+
+Va de **0,00% a 99,95%**. No es un defecto parejo del dataset: es específico de
+ciertos ataques. Tiene sentido — una fuerza bruta de FTP repite exactamente la
+misma operación miles de veces y CICFlowMeter produce registros idénticos.
+
+Pero la consecuencia es seria: **`FTP-BruteForce` y `DoS attacks-SlowHTTPTest`
+dejan de existir como material de entrenamiento utilizable.** De 100.000 flujos
+cada uno quedan 53 y 54.
+
+Un trabajo que no deduplique nunca ve este problema — al contrario, obtiene
+métricas *excelentes* en esas dos clases, porque está evaluando sobre copias
+exactas de lo que memorizó.
+
+**Aquí se nota por qué agrupar en familias fue la decisión correcta:**
+`Fuerza bruta` sobrevive gracias a `SSH-Bruteforce` (50.199 flujos únicos) y
+`DoS` sobrevive gracias a `Hulk` y `GoldenEye`. Con las 14 etiquetas originales,
+dos clases habrían quedado con ~50 ejemplos.
+
+> Las columnas "en la muestra" ya tienen aplicado el tope de 100.000 flujos por
+> etiqueta de la ingesta, así que los porcentajes están medidos sobre nuestra
+> muestra de trabajo y no sobre los 16,2 M completos. La tabla se regenera con
+> `python -I src/preparar.py` y queda en `data/processed/metadatos_modelado.json`.
+
 ---
 
 ## Los modelos
