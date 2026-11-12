@@ -126,9 +126,23 @@ def main() -> int:
     cols_feat = [c for c in df.columns
                  if c not in ("Timestamp", "Label", "familia", "es_ataque", "dia_captura")]
     antes = len(df)
+    conteo_antes_dedup = df["Label"].value_counts().to_dict()
     df = df.drop_duplicates(subset=cols_feat + ["Label"], keep="first")
+    conteo_tras_dedup = df["Label"].value_counts().to_dict()
     log(f"duplicados exactos eliminados: {antes - len(df):,} "
         f"({(antes - len(df)) / antes:.1%} de la muestra) -> quedan {len(df):,}")
+
+    # El agregado esconde lo importante: la tasa de duplicados varia muchisimo
+    # entre ataques. Hay etiquetas que practicamente desaparecen.
+    log("tasa de duplicados por etiqueta:")
+    tasas = sorted(
+        ((e, conteo_antes_dedup[e], conteo_tras_dedup.get(e, 0)) for e in conteo_antes_dedup),
+        key=lambda x: -(1 - x[2] / x[1]),
+    )
+    for etiqueta, n_antes, n_desp in tasas:
+        pct = (1 - n_desp / n_antes) * 100
+        aviso = "  <-- casi no queda nada" if pct > 99 else ""
+        log(f"  {etiqueta:<26} {n_antes:>9,} -> {n_desp:>8,}  ({pct:5.1f}% duplicados){aviso}")
 
     # --- particion temporal estratificada ----------------------------------
     # No se usa un split aleatorio: los flujos de una misma rafaga de ataque son
@@ -176,6 +190,8 @@ def main() -> int:
         "etiquetas_crudas": crudas,
         "familias": {k: int(v) for k, v in df["familia"].value_counts().items()},
         "duplicados_eliminados": int(antes - len(df)),
+        "conteo_antes_dedup": {k: int(v) for k, v in conteo_antes_dedup.items()},
+        "conteo_tras_dedup": {k: int(v) for k, v in conteo_tras_dedup.items()},
         "frac_train": FRAC_TRAIN,
         "rango_fechas": [str(df["Timestamp"].min()), str(df["Timestamp"].max())],
         "reparto": {f: {p: int(tabla.loc[f].get(p, 0)) for p in tabla.columns}
