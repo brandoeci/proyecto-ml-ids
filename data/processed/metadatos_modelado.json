@@ -1,0 +1,66 @@
+{
+  "filas": 1420028,
+  "columnas": 84,
+  "etiquetas_crudas": [
+    "Benign",
+    "Bot",
+    "Brute Force -Web",
+    "Brute Force -XSS",
+    "DDOS attack-HOIC",
+    "DDOS attack-LOIC-UDP",
+    "DDoS attacks-LOIC-HTTP",
+    "DoS attacks-GoldenEye",
+    "DoS attacks-Hulk",
+    "DoS attacks-SlowHTTPTest",
+    "DoS attacks-Slowloris",
+    "FTP-BruteForce",
+    "Infilteration",
+    "SQL Injection",
+    "SSH-Bruteforce"
+  ],
+  "familias": {
+    "Benigno": 925666,
+    "DDoS": 148090,
+    "Infiltracion": 140610,
+    "DoS": 103590,
+    "Botnet": 50955,
+    "Fuerza bruta": 50252,
+    "Ataque web": 865
+  },
+  "duplicados_eliminados": 575044,
+  "frac_train": 0.7,
+  "rango_fechas": [
+    "2018-02-14 01:00:03",
+    "2018-03-02 12:59:59"
+  ],
+  "reparto": {
+    "Ataque web": {
+      "test": 261,
+      "train": 604
+    },
+    "Benigno": {
+      "test": 277704,
+      "train": 647962
+    },
+    "Botnet": {
+      "test": 15287,
+      "train": 35668
+    },
+    "DDoS": {
+      "test": 44428,
+      "train": 103662
+    },
+    "DoS": {
+      "test": 31078,
+      "train": 72512
+    },
+    "Fuerza bruta": {
+      "test": 15076,
+      "train": 35176
+    },
+    "Infiltracion": {
+      "test": 42184,
+      "train": 98426
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# Normaliza los finales de linea: el equipo trabaja en Windows y en Linux.
+* text=auto eol=lf
+
+# Binarios: que git no intente convertirlos ni mostrar diffs.
+*.png binary
+*.parquet binary
+
+# Los notebooks generan diffs ilegibles; se marcan para que no estorben.
+*.ipynb -diff

@@ -1,0 +1,37 @@
+# --- Datos ---
+# El dataset no va al repositorio: son 6.4 GB de CSV crudo y 130 MB de Parquet.
+# Se reconstruye con `python -I src/ingest.py` (lo baja de S3, acceso anonimo).
+#
+# Se usa /** y no / porque git no permite volver a incluir un archivo si su
+# directorio padre esta excluido: con `data/processed/` las dos negaciones de
+# abajo no tendrian efecto.
+data/raw/**
+data/interim/**
+data/processed/**
+
+# Los metadatos si van: son pequenos y documentan la corrida (entre otras cosas
+# la distribucion real de las 16.2 M de filas, que no se puede verificar sin
+# volver a bajar el dataset completo).
+!data/processed/metadatos_modelado.json
+!data/processed/conteo_etiquetas_real.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# --- Sistema ---
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- Temporales ---
+*.log
+*.tmp

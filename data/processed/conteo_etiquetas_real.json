@@ -1,0 +1,69 @@
+{
+  "total": {
+    "FTP-BruteForce": 193360,
+    "SSH-Bruteforce": 187589,
+    "Benign": 13484708,
+    "DoS attacks-GoldenEye": 41508,
+    "DoS attacks-Slowloris": 10990,
+    "DoS attacks-Hulk": 461912,
+    "DoS attacks-SlowHTTPTest": 139890,
+    "DDoS attacks-LOIC-HTTP": 576191,
+    "DDOS attack-HOIC": 686012,
+    "DDOS attack-LOIC-UDP": 1730,
+    "Brute Force -Web": 611,
+    "Brute Force -XSS": 230,
+    "SQL Injection": 87,
+    "Infilteration": 161934,
+    "Bot": 286191
+  },
+  "por_dia": {
+    "Wednesday-14-02-2018": {
+      "FTP-BruteForce": 193360,
+      "SSH-Bruteforce": 187589,
+      "Benign": 667626
+    },
+    "Thursday-15-02-2018": {
+      "Benign": 996077,
+      "DoS attacks-GoldenEye": 41508,
+      "DoS attacks-Slowloris": 10990
+    },
+    "Friday-16-02-2018": {
+      "DoS attacks-Hulk": 461912,
+      "Benign": 446772,
+      "DoS attacks-SlowHTTPTest": 139890
+    },
+    "Thuesday-20-02-2018": {
+      "DDoS attacks-LOIC-HTTP": 576191,
+      "Benign": 7372557
+    },
+    "Wednesday-21-02-2018": {
+      "DDOS attack-HOIC": 686012,
+      "Benign": 360833,
+      "DDOS attack-LOIC-UDP": 1730
+    },
+    "Thursday-22-02-2018": {
+      "Benign": 1048213,
+      "Brute Force -Web": 249,
+      "Brute Force -XSS": 79,
+      "SQL Injection": 34
+    },
+    "Friday-23-02-2018": {
+      "Benign": 1048009,
+      "Brute Force -Web": 362,
+      "Brute Force -XSS": 151,
+      "SQL Injection": 53
+    },
+    "Wednesday-28-02-2018": {
+      "Benign": 544200,
+      "Infilteration": 68871
+    },
+    "Friday-02-03-2018": {
+      "Bot": 286191,
+      "Benign": 762384
+    },
+    "Thursday-01-03-2018": {
+      "Benign": 238037,
+      "Infilteration": 93063
+    }
+  }
+}

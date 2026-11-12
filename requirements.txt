@@ -1,0 +1,24 @@
+# Versiones con las que se corrio el proyecto (Python 3.12.1, Windows 10)
+pandas==3.0.5
+numpy==2.2.6
+scikit-learn==1.5.2
+lightgbm==4.7.0
+xgboost==3.4.1
+pyarrow==25.0.1
+matplotlib
+seaborn
+shap
+scipy
+
+# Notebook
+jupyterlab
+notebook
+nbformat
+nbclient
+nbconvert
+jupytext
+ipykernel
+
+# La descarga del dataset usa el AWS CLI v2 (binario aparte, no pip):
+#   https://aws.amazon.com/cli/
+# El bucket es publico, no hacen falta credenciales (--no-sign-request).
