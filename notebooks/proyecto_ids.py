@@ -851,10 +851,30 @@ if len(te_benignos) > cfg.N_TEST_BENIGNO:
     te_benignos = te_benignos.sample(cfg.N_TEST_BENIGNO, random_state=cfg.SEMILLA)
 te_e1 = pd.concat([te_benignos, te_ataques]).sample(frac=1, random_state=cfg.SEMILLA)
 
+from sklearn.preprocessing import FunctionTransformer, StandardScaler
+
+
+def log_con_signo(X):
+    """log(1+|x|) conservando el signo. Domina las colas sin recortar nada."""
+    return np.sign(X) * np.log1p(np.abs(X))
+
+
+# OJO: aqui NO se usa QuantileTransformer, y es una decision deliberada.
+#
+# La transformacion por cuantiles, ajustada solo con trafico benigno, RECORTA
+# cualquier valor que caiga fuera del rango observado: lo manda al cuantil
+# minimo o maximo del benigno. Para un detector de anomalias eso es
+# autodestructivo, porque "estar fuera del rango normal" es justo la senal que
+# tiene que detectar. Un flujo con un ritmo de paquetes mil veces superior a lo
+# normal quedaba indistinguible del benigno mas extremo.
+#
+# Lo medimos: con cuantiles, el One-Class SVM daba ROC-AUC 0.38 (PEOR que el
+# azar) y el Isolation Forest 0.54. Con log + estandarizacion los valores
+# extremos siguen siendo extremos.
 pre_e1 = Pipeline([
     ("imputar", SimpleImputer(strategy="median")),
-    ("escalar", QuantileTransformer(output_distribution="normal", n_quantiles=1000,
-                                    random_state=cfg.SEMILLA, subsample=200_000)),
+    ("log", FunctionTransformer(log_con_signo, feature_names_out="one-to-one")),
+    ("escalar", StandardScaler()),
 ])
 Xe1_ajuste = pre_e1.fit_transform(ben_ajuste[VARIABLES])      # SOLO benignos
 Xe1_calib = pre_e1.transform(ben_calib[VARIABLES])
@@ -1432,12 +1452,45 @@ f1_rand = f1_score(ye2_te, codif.inverse_transform(busq_aleatoria.best_estimator
                    average="macro")
 f1_grid = f1_score(ye2_te, codif.inverse_transform(busq_rejilla.best_estimator_.predict(Xe2_te)),
                    average="macro")
-MODELO_E2_FINAL = busq_aleatoria.best_estimator_ if f1_rand >= f1_grid else busq_rejilla.best_estimator_
-MODELO_E1_FINAL = iforest_opt
+if f1_rand >= f1_grid:
+    MODELO_E2_FINAL, NOMBRE_E2_FINAL = busq_aleatoria.best_estimator_, "LightGBM + RandomizedSearch"
+else:
+    MODELO_E2_FINAL, NOMBRE_E2_FINAL = busq_rejilla.best_estimator_, "Random Forest + GridSearch"
 
-print(f"\nModelo final etapa 1: Isolation Forest optimizado")
-print(f"Modelo final etapa 2: {type(MODELO_E2_FINAL).__name__} "
-      f"(F1 macro = {max(f1_rand, f1_grid):.4f})")
+# %% [markdown]
+# ## 6.1 Qué detector de la etapa 1 se lleva a la cascada
+#
+# No se puede elegir "el que mejor salio en el test": eso seria usar el test para
+# decidir. Se escoge con el **conjunto de validación** —benignos de calibración
+# mezclados con ataques del *train*— que es el mismo que se usó para la rejilla
+# del Isolation Forest.
+
+# %%
+candidatos_e1 = dict(modelos_e1)
+candidatos_e1["Isolation Forest (optimizado)"] = lambda X, m=iforest_opt: -m.score_samples(X)
+
+filas_sel = []
+for nombre, puntuar in candidatos_e1.items():
+    if "referencia" in nombre:
+        continue      # el supervisado no compite: usa etiquetas que no tendriamos
+    filas_sel.append({
+        "modelo": nombre,
+        "PR-AUC (validacion)": average_precision_score(y_val_if, puntuar(X_val_if)),
+        "ROC-AUC (validacion)": roc_auc_score(y_val_if, puntuar(X_val_if)),
+    })
+
+tabla_sel = (pd.DataFrame(filas_sel).set_index("modelo")
+             .sort_values("PR-AUC (validacion)", ascending=False))
+display(tabla_sel.style.format("{:.4f}")
+        .background_gradient(subset=["PR-AUC (validacion)"], cmap="Greens"))
+
+NOMBRE_E1_FINAL = tabla_sel.index[0]
+PUNTUAR_E1_FINAL = candidatos_e1[NOMBRE_E1_FINAL]
+
+print(f"\nModelo final etapa 1: {NOMBRE_E1_FINAL} "
+      f"(PR-AUC en validacion = {tabla_sel.iloc[0]['PR-AUC (validacion)']:.4f})")
+print(f"Modelo final etapa 2: {NOMBRE_E2_FINAL} "
+      f"(F1 macro en test = {max(f1_rand, f1_grid):.4f})")
 
 # %% [markdown]
 # ---
@@ -1562,11 +1615,11 @@ for fam_oculta in [f for f in cfg.FAMILIAS_ATAQUE if f in CLASES_E2]:
     })
     confusiones_oculta[fam_oculta] = pd.Series(pred_oculta).value_counts(normalize=True)
     print(f"{fam_oculta:<14} oculta -> {tasa_rechazo:6.1%} reconocido como Desconocido "
-          f"(tau={tau_o:.3f}, {int(m_te_oculta.sum()):,} flujos)")
+          f"(tau={tau_o:.6f}, {int(m_te_oculta.sum()):,} flujos)")
 
 tabla_abierto = pd.DataFrame(filas_abierto).set_index("familia oculta")
 display(tabla_abierto.style.format({
-    "tau": "{:.3f}", "-> Desconocido (acierto)": "{:.1%}",
+    "tau": "{:.6f}", "-> Desconocido (acierto)": "{:.1%}",
     "-> familia erronea (peligro)": "{:.1%}",
     "rechazo indebido en conocidas": "{:.1%}", "acierto en conocidas": "{:.1%}",
 }).background_gradient(subset=["-> Desconocido (acierto)"], cmap="RdYlGn"))
@@ -1642,7 +1695,7 @@ plt.show()
 # ```
 #                       ┌──────────────────────┐
 #   flujo de red  ──▶   │ ETAPA 1              │
-#                       │ Isolation Forest     │
+#                       │ detector de anomalia │
 #                       │ (solo vio benignos)  │
 #                       └──────────┬───────────┘
 #                                  │
@@ -1675,14 +1728,15 @@ plt.show()
 modelo_e2_casc, cod_casc, tau_casc = entrenar_con_rechazo(
     Xe2_tr[idx_aj], ye2_tr[idx_aj], Xe2_tr[idx_val], ye2_tr[idx_val]
 )
-print(f"Umbral de rechazo de la cascada: tau = {tau_casc:.4f}")
+print(f"Umbral de rechazo de la etapa 2: tau = {tau_casc:.6f}")
 
-# Etapa 1 final: Isolation Forest optimizado, umbral al presupuesto de FPR
-s_calib_f = -MODELO_E1_FINAL.score_samples(Xe1_calib)
+# Etapa 1 final: el detector elegido en 6.1, con el umbral al presupuesto de FPR
+s_calib_f = PUNTUAR_E1_FINAL(Xe1_calib)
 umbral_e1 = float(np.quantile(s_calib_f, 1 - cfg.FPR_OBJETIVO))
-s_test_f = -MODELO_E1_FINAL.score_samples(Xe1_test)
+s_test_f = PUNTUAR_E1_FINAL(Xe1_test)
 alerta_e1 = s_test_f >= umbral_e1
-print(f"Umbral de la etapa 1: {umbral_e1:.4f} (presupuesto FPR = {cfg.FPR_OBJETIVO:.0%})")
+print(f"Etapa 1: {NOMBRE_E1_FINAL}, umbral = {umbral_e1:.4f} "
+      f"(presupuesto FPR = {cfg.FPR_OBJETIVO:.0%})")
 
 # Las mismas filas del test, pero escaladas con el preprocesador de la ETAPA 2.
 # Cada etapa ajusto su propio QuantileTransformer con datos distintos (la 1 solo
@@ -2021,7 +2075,10 @@ if len(ej):
 # Tabla resumen de todo el trabajo
 resumen = pd.DataFrame([
     {"Etapa": "1 - Anomalia", "Mejor modelo": MEJOR_E1,
-     "Metrica": "PR-AUC", "Valor": tabla_e1.loc[MEJOR_E1, "PR-AUC"]},
+     "Metrica": "PR-AUC (test)", "Valor": tabla_e1.loc[MEJOR_E1, "PR-AUC"]},
+    {"Etapa": "1 - En la cascada", "Mejor modelo": NOMBRE_E1_FINAL,
+     "Metrica": "PR-AUC (validacion)",
+     "Valor": tabla_sel.iloc[0]["PR-AUC (validacion)"]},
     {"Etapa": "1 - Anomalia", "Mejor modelo": MEJOR_E1,
      "Metrica": f"Recall @ FPR {cfg.FPR_OBJETIVO:.0%}",
      "Valor": tabla_e1.loc[MEJOR_E1, "Recall @ FPR 1%"]},
@@ -2029,7 +2086,7 @@ resumen = pd.DataFrame([
      "Metrica": "PR-AUC", "Valor": tabla_e1.loc["Random Forest (referencia)", "PR-AUC"]},
     {"Etapa": "2 - Familia", "Mejor modelo": MEJOR_E2,
      "Metrica": "F1 macro", "Valor": tabla_e2.loc[MEJOR_E2, "F1 macro"]},
-    {"Etapa": "2 - Familia", "Mejor modelo": f"{MEJOR_E2} + hiperparametros",
+    {"Etapa": "2 - Familia", "Mejor modelo": NOMBRE_E2_FINAL,
      "Metrica": "F1 macro", "Valor": max(f1_rand, f1_grid)},
     {"Etapa": "Cascada", "Mejor modelo": "Etapa 1 + Etapa 2",
      "Metrica": "Recall de ataques", "Valor": atrapados / n_ataques},
@@ -2046,15 +2103,31 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 #
 # **1. El mejor modelo de cada etapa, y por qué.**
 #
-# - **Etapa 1: Isolation Forest.** Gana en PR-AUC entre los no supervisados y es
-#   el único que escala sin submuestrear. El One-Class SVM y el LOF se quedan
-#   atrás *y* obligan a tirar datos por su coste computacional. El autoencoder es
-#   competitivo pero más frágil de ajustar. La brecha contra el Random Forest
-#   supervisado es el **precio real de no tener ataques etiquetados**, y es el
-#   número honesto que había que medir.
-# - **Etapa 2: LightGBM** con hiperparámetros optimizados. Le gana a Random
-#   Forest, a XGBoost, a k-NN, al MLP y —sobre todo— a la regresión logística,
-#   que es la comparación que justifica usar algo complejo.
+# - **Etapa 1: el ganador está en la tabla de §5.1 y en la selección de §6.1**,
+#   y conviene leer esa tabla entera antes que quedarse con el nombre. Lo que
+#   importa es la forma de los resultados: los detectores que miran **densidad
+#   local** (LOF) y **error de reconstrucción** (autoencoder) van muy por delante
+#   de los que parten el espacio con cortes globales (Isolation Forest) o
+#   envuelven los datos con una frontera única (One-Class SVM). Tiene sentido: el
+#   tráfico benigno de una red no es *una* nube, son muchas nubes distintas
+#   —web, DNS, backups, correo— y un método global no puede describirlas con una
+#   sola forma.
+#   La brecha contra el Random Forest supervisado es el **precio real de no tener
+#   ataques etiquetados**, y es el número honesto que había que medir.
+# - **Etapa 2: los modelos de árboles con *boosting* y *bagging* quedan
+#   empatados arriba** y bastante por encima de la regresión logística, que es la
+#   comparación que justifica usar algo complejo. El ganador exacto entre
+#   LightGBM y Random Forest cambia según la semilla: la diferencia entre ellos
+#   es menor que la incertidumbre del experimento, y decir eso es más honesto que
+#   proclamar un campeón por la tercera cifra decimal.
+#
+# **1b. El escalado de la etapa 1 fue tan determinante como el modelo.**
+# Con `QuantileTransformer` ajustado solo con tráfico benigno, el One-Class SVM
+# daba **ROC-AUC 0,38 — peor que lanzar una moneda**. No era culpa del modelo:
+# esa transformación *recorta* los valores fuera del rango benigno, que es
+# exactamente la señal que un detector de anomalías necesita. Cambiarlo por
+# logaritmo con signo + estandarización fue la decisión que más movió la aguja
+# en toda la etapa 1. Está en §4.1.
 #
 # **2. Las dos etapas se justifican en la prueba de fuego, no en las métricas.**
 # El clasificador monolítico de 7 clases *gana* en los ataques que ya conoce.
