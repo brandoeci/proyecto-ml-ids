@@ -1,25 +1,22 @@
 """
-Consolidacion de los parquets por dia en un unico dataset de modelado.
+Junta los parquets de cada dia en un solo dataset para modelar.
 
-Hace solo lo mecanico e indiscutible. El analisis de variables (constantes,
-correlacionadas, fuga por Dst Port) se queda en el notebook, porque es
-analisis y debe verse.
+Aca solo va lo mecanico. El analisis de variables (constantes, correlacionadas,
+la fuga por Dst Port) se queda en el notebook, porque eso es analisis y hay que
+poder verlo.
 
-Pasos:
-  1. unir los 10 parquets por dia
-  2. normalizar las etiquetas y agruparlas en familias de ataque
-  3. parsear Timestamp (viene en dd/mm/yyyy, con formatos mezclados)
-  4. quitar duplicados exactos
-  5. asignar particion train/test por tiempo DENTRO de cada dia
-  6. guardar data/processed/ids2018_modelado.parquet + metadatos
+Lo que hace:
+  1. une los 10 parquets por dia
+  2. normaliza las etiquetas y las agrupa en familias
+  3. parsea Timestamp (viene en dd/mm/yyyy y con formatos mezclados)
+  4. quita duplicados exactos
+  5. parte en train/test por tiempo
+  6. guarda data/processed/ids2018_modelado.parquet y los metadatos
 
 Uso:  python -I src/preparar.py
 """
 
-from __future__ import annotations
-
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -29,18 +26,17 @@ RAIZ = Path(__file__).resolve().parent.parent
 DIR_INTERIM = RAIZ / "data" / "interim"
 DIR_PROC = RAIZ / "data" / "processed"
 
-FRAC_TRAIN = 0.70   # primer 70% de cada dia -> train, ultimo 30% -> test
+FRAC_TRAIN = 0.70   # el primer 70% de cada dia va a train, el ultimo 30% a test
 SEMILLA = 42
 
-# --- Taxonomia -------------------------------------------------------------
-# Las 14 etiquetas de ataque de CSE-CIC-IDS2018 se agrupan en 6 familias.
-# Motivo: varias etiquetas son solo la herramienta usada (LOIC, HOIC, GoldenEye,
-# Hulk) para el mismo comportamiento. Para un analista de un SOC lo que importa
-# es la familia; y agrupar le da a la etapa 2 clases con suficientes ejemplos.
+# Agrupamos las 14 etiquetas de ataque en 6 familias. La razon es que varias
+# etiquetas son solo la herramienta que usaron (LOIC, HOIC, GoldenEye, Hulk) para
+# hacer lo mismo. A un analista lo que le importa es la familia, y de paso le deja
+# a la etapa 2 clases con suficientes ejemplos.
 #
-# Las llaves estan en minuscula y sin espacios para que el emparejamiento
-# aguante las variantes de escritura del dataset (que no es consistente, e
-# incluye el error tipografico "Infilteration").
+# Las llaves van en minuscula y sin espacios para que el emparejamiento aguante
+# las variantes de escritura del dataset, que no es consistente e incluso trae la
+# etiqueta mal escrita ("Infilteration").
 FAMILIAS = {
     "benign": "Benigno",
 
@@ -67,32 +63,32 @@ FAMILIAS = {
 }
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+def log(msg):
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}")
 
 
-def normalizar(etiqueta: str) -> str:
-    """Pasa una etiqueta cruda a la llave canonica de FAMILIAS."""
+def normalizar(etiqueta):
+    """Deja la etiqueta como la llave que usamos en FAMILIAS."""
     return "".join(str(etiqueta).lower().split())
 
 
-def a_familia(etiqueta: str) -> str:
+def a_familia(etiqueta):
     llave = normalizar(etiqueta)
     if llave not in FAMILIAS:
         raise KeyError(
             f"etiqueta sin familia asignada: {etiqueta!r} (normalizada: {llave!r}). "
-            "Agregala al diccionario FAMILIAS antes de seguir."
+            "Hay que agregarla al diccionario FAMILIAS antes de seguir."
         )
     return FAMILIAS[llave]
 
 
-def main() -> int:
+def main():
     DIR_PROC.mkdir(parents=True, exist_ok=True)
 
     archivos = sorted(DIR_INTERIM.glob("*.parquet"))
     if not archivos:
         log("no hay parquets en data/interim. Corre primero src/ingest.py")
-        return 1
+        return
     log(f"uniendo {len(archivos)} parquets por dia")
 
     df = pd.concat([pd.read_parquet(a) for a in archivos], ignore_index=True)
@@ -110,19 +106,19 @@ def main() -> int:
         log(f"  {fam:<16} {k:>10,}")
 
     # --- tiempo ------------------------------------------------------------
-    # El dataset mezcla formatos; dayfirst=True porque viene en dd/mm/yyyy.
+    # El dataset mezcla formatos; dayfirst porque viene en dd/mm/yyyy.
     df["Timestamp"] = pd.to_datetime(
         df["Timestamp"], dayfirst=True, format="mixed", errors="coerce"
     )
     sin_fecha = int(df["Timestamp"].isna().sum())
     if sin_fecha:
-        log(f"ADVERTENCIA: {sin_fecha:,} filas sin Timestamp parseable -> se descartan")
+        log(f"OJO: {sin_fecha:,} filas sin Timestamp parseable, se descartan")
         df = df[df["Timestamp"].notna()].copy()
 
     # --- duplicados exactos ------------------------------------------------
-    # CSE-CIC-IDS2018 trae muchisimas filas repetidas (rafagas de ataque donde
-    # los flujos salen identicos). Si no se quitan, el mismo flujo cae en train
-    # y en test y las metricas salen infladas.
+    # El dataset trae muchisimas filas repetidas, sobre todo en las rafagas de
+    # ataque, donde los flujos salen identicos. Si no las quitamos, el mismo
+    # flujo cae en train y en test y las metricas salen infladas.
     cols_feat = [c for c in df.columns
                  if c not in ("Timestamp", "Label", "familia", "es_ataque", "dia_captura")]
     antes = len(df)
@@ -132,8 +128,8 @@ def main() -> int:
     log(f"duplicados exactos eliminados: {antes - len(df):,} "
         f"({(antes - len(df)) / antes:.1%} de la muestra) -> quedan {len(df):,}")
 
-    # El agregado esconde lo importante: la tasa de duplicados varia muchisimo
-    # entre ataques. Hay etiquetas que practicamente desaparecen.
+    # El promedio esconde lo importante: la tasa cambia muchisimo de un ataque a
+    # otro. Hay etiquetas que practicamente desaparecen.
     log("tasa de duplicados por etiqueta:")
     tasas = sorted(
         ((e, conteo_antes_dedup[e], conteo_tras_dedup.get(e, 0)) for e in conteo_antes_dedup),
@@ -144,21 +140,24 @@ def main() -> int:
         aviso = "  <-- casi no queda nada" if pct > 99 else ""
         log(f"  {etiqueta:<26} {n_antes:>9,} -> {n_desp:>8,}  ({pct:5.1f}% duplicados){aviso}")
 
-    # --- particion temporal estratificada ----------------------------------
-    # No se usa un split aleatorio: los flujos de una misma rafaga de ataque son
-    # casi identicos entre si, y repartidos al azar el modelo ve en test algo
-    # practicamente igual a lo que vio en train. Partir por tiempo evita eso.
+    # --- particion train/test por tiempo -----------------------------------
+    # No usamos split aleatorio: los flujos de una misma rafaga de ataque son casi
+    # identicos entre si, y repartidos al azar el modelo ve en test algo
+    # practicamente igual a lo que ya vio entrenando.
     #
-    # Se parte por tiempo DENTRO de cada par (dia, familia), no por dia a secas:
-    #   - un corte global por dias dejaria familias completas fuera del train,
-    #     porque cada ataque ocurre en dias especificos
-    #   - un corte por dia a secas vacia las familias cuyos flujos unicos estan
-    #     concentrados al inicio de su dia (le pasaba a Fuerza bruta: sus flujos
-    #     son tan repetitivos que el deduplicado deja solo los primeros, y en
-    #     test quedaban 53 de 50.252)
-    # Partiendo dentro de cada (dia, familia) se conserva lo importante -el test
-    # ocurre despues del train para esa misma familia, asi que ninguna rafaga se
-    # reparte entre ambos- y cada familia queda con ~30% para evaluar.
+    # Partimos por tiempo dentro de cada par (dia, familia), no por dia a secas.
+    # Probamos las dos otras formas y ninguna sirve:
+    #   - cortar por dias completos deja familias enteras fuera del train, porque
+    #     cada ataque ocurre en dias especificos
+    #   - cortar por dia a secas vacia las familias cuyos flujos unicos quedaron
+    #     al comienzo del dia. A Fuerza bruta le pasaba: es tan repetitiva que el
+    #     deduplicado deja solo los primeros, y en test quedaban 53 de 50.252
+    # Dentro de cada (dia, familia) se conserva lo que importa, que el test ocurra
+    # despues del train para esa misma familia, y cada familia queda con ~30% para
+    # evaluar.
+    #
+    # El sort va con kind="stable": si no, las filas con el mismo Timestamp pueden
+    # quedar en otro orden entre corridas y el split deja de ser reproducible.
     df = df.sort_values(["dia_captura", "familia", "Timestamp"],
                         kind="stable").reset_index(drop=True)
     df["particion"] = "test"
@@ -174,14 +173,14 @@ def main() -> int:
         te = int(tabla.loc[fam].get("test", 0))
         log(f"  {fam:<16} train={tr:>9,}  test={te:>9,}")
 
-    # Una familia sin ejemplos en alguna particion romperia el modelado.
+    # Si una familia queda vacia en alguna particion, el modelado se rompe.
     for fam in tabla.index:
         if int(tabla.loc[fam].get("train", 0)) == 0 or int(tabla.loc[fam].get("test", 0)) == 0:
-            log(f"ADVERTENCIA: la familia {fam!r} quedo vacia en una particion")
+            log(f"OJO: la familia {fam!r} quedo vacia en una particion")
 
     # --- guardar -----------------------------------------------------------
     salida = DIR_PROC / "ids2018_modelado.parquet"
-    df.to_parquet(salida, index=False, compression="zstd")
+    df.to_parquet(salida, index=False)
     log(f"guardado {salida} ({salida.stat().st_size / 1e6:.0f} MB)")
 
     meta = {
@@ -201,8 +200,7 @@ def main() -> int:
         json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     log("listo")
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

@@ -18,7 +18,7 @@ COLS_FUGA = ["Dst Port"]
 
 # Topes de tamano por modelo. Los modelos basados en distancias o kernels no
 # escalan a millones de filas en un portatil, asi que se entrenan sobre
-# submuestras aleatorias estratificadas. Queda declarado para que sea auditable.
+# submuestras. Lo dejamos escrito aca para que se sepa cuales y de que tamano.
 N_BENIGNO_E1 = 150_000   # Isolation Forest
 N_OCSVM = 20_000         # One-Class SVM  (coste ~O(n^2))
 N_LOF = 50_000           # Local Outlier Factor

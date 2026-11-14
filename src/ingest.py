@@ -1,24 +1,21 @@
 """
-Ingesta de CSE-CIC-IDS2018 con disco limitado.
+Descarga CSE-CIC-IDS2018 y arma la muestra de trabajo.
 
-Estrategia: por cada archivo del dataset (10 en total, 6.4 GB)
-  1. descargar el CSV desde S3 (acceso anonimo)
-  2. leerlo por trozos y contar la distribucion REAL de etiquetas (sin muestrear)
-  3. muestrear: conservar todos los flujos de ataque, submuestrear los benignos
-  4. guardar en Parquet y BORRAR el CSV crudo
+El dataset son 6.4 GB de CSV y no nos caben todos a la vez en el disco, asi que
+por cada uno de los 10 archivos hacemos:
+  1. bajarlo de S3 (el bucket es publico)
+  2. leerlo por trozos y contar las etiquetas reales, antes de muestrear
+  3. muestrear: nos quedamos con todos los ataques y con el 8% de los benignos
+  4. guardarlo en parquet y borrar el CSV
 
-Asi el pico de disco se queda por debajo de ~4.5 GB en vez de los 6.4 GB
-que ocuparia bajar todo de una, y el resultado final cabe en memoria.
+Asi el disco no pasa de ~4.5 GB en ningun momento.
 
-Las cuentas completas se guardan en data/processed/conteo_etiquetas_real.json
-para que el EDA pueda mostrar el desbalance verdadero aunque el modelado
-se haga sobre la muestra.
+Los conteos completos quedan en data/processed/conteo_etiquetas_real.json, para
+que en el EDA podamos mostrar el desbalance de verdad y no el de la muestra.
 
 Uso:  python -I src/ingest.py              # los 10 dias
-      python -I src/ingest.py <dia> ...    # solo esos dias (util para reanudar)
+      python -I src/ingest.py <dia> ...    # solo esos dias, para reanudar
 """
-
-from __future__ import annotations
 
 import json
 import subprocess
@@ -34,7 +31,7 @@ BUCKET = "cse-cic-ids2018"
 PREFIX = "Processed Traffic Data for ML Algorithms"
 SUFIJO = "_TrafficForML_CICFlowMeter.csv"
 
-# El dataset esta organizado por dia de captura. Cada dia trae ataques distintos.
+# El dataset viene separado por dia de captura y cada dia trae ataques distintos.
 DIAS = [
     "Wednesday-14-02-2018",
     "Thursday-15-02-2018",
@@ -48,13 +45,13 @@ DIAS = [
     "Friday-02-03-2018",
 ]
 
-# Columnas identificadoras que solo aparecen en el archivo del 20-02.
-# Se descartan: son identificadores de red, no comportamiento. Si se dejaran,
-# el modelo podria memorizar IPs atacantes en vez de aprender el ataque.
+# Estas 4 columnas solo aparecen en el archivo del 20-02. Las botamos porque son
+# identificadores de red: si las dejamos, el modelo se puede aprender las IPs de
+# los atacantes en vez del comportamiento del ataque.
 COLS_EXTRA = ["Flow ID", "Src IP", "Src Port", "Dst IP"]
 
-TASA_BENIGNO = 0.08      # conservamos 8% del trafico benigno
-MAX_POR_CLASE = 100_000  # tope por clase de ataque, para que no domine una sola
+TASA_BENIGNO = 0.08      # nos quedamos con el 8% del trafico benigno
+MAX_POR_CLASE = 100_000  # tope por ataque, para que no domine uno solo
 TAM_TROZO = 400_000
 SEMILLA = 42
 
@@ -64,15 +61,16 @@ DIR_INTERIM = RAIZ / "data" / "interim"
 DIR_PROC = RAIZ / "data" / "processed"
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+def log(msg):
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}")
 
 
-def descargar(dia: str) -> Path:
+def descargar(dia):
     destino = DIR_RAW / f"{dia}{SUFIJO}"
     if destino.exists() and destino.stat().st_size > 0:
         log(f"  ya estaba descargado ({destino.stat().st_size / 1e6:.0f} MB)")
         return destino
+
     uri = f"s3://{BUCKET}/{PREFIX}/{dia}{SUFIJO}"
     log(f"  descargando {uri}")
     res = subprocess.run(
@@ -80,38 +78,40 @@ def descargar(dia: str) -> Path:
         capture_output=True,
         text=True,
     )
+    # Si no revisamos esto, una descarga fallida pasa de largo y el dia queda vacio.
     if res.returncode != 0:
         raise RuntimeError(f"fallo la descarga de {dia}: {res.stderr.strip()}")
     log(f"  descargado ({destino.stat().st_size / 1e6:.0f} MB)")
     return destino
 
 
-def limpiar_trozo(tr: pd.DataFrame) -> pd.DataFrame:
-    """Limpieza minima e indiscutible, a nivel de trozo."""
-    # 1. Algunos archivos traen la fila de encabezado repetida en medio.
+def limpiar_trozo(tr):
+    """La limpieza minima, la que no admite discusion. El analisis va en el notebook."""
+    # 1. Varios archivos traen la fila de encabezado repetida en la mitad.
     tr = tr[tr["Label"] != "Label"]
 
-    # 2. Columnas identificadoras del archivo del 20-02.
+    # 2. Las columnas identificadoras del archivo del 20-02.
     sobrantes = [c for c in COLS_EXTRA if c in tr.columns]
     if sobrantes:
         tr = tr.drop(columns=sobrantes)
 
-    # 3. Todo lo que no sea Timestamp ni Label debe ser numerico.
-    #    Hay celdas con "Infinity" y con texto suelto -> se vuelven NaN.
+    # 3. Todo lo que no sea Timestamp ni Label tiene que ser numerico. Hay celdas
+    #    con "Infinity" y con texto suelto, esas quedan en NaN.
     no_num = ["Timestamp", "Label"]
     cols_num = [c for c in tr.columns if c not in no_num]
     for c in cols_num:
         if tr[c].dtype == object:
             tr[c] = pd.to_numeric(tr[c], errors="coerce")
     tr[cols_num] = tr[cols_num].replace([np.inf, -np.inf], np.nan)
+    # float32 en vez de float64: con esto el dataset ocupa la mitad de RAM.
     tr[cols_num] = tr[cols_num].astype("float32")
 
     return tr
 
 
-def procesar(dia: str, csv: Path, rng: np.random.Generator) -> tuple[pd.DataFrame, Counter]:
+def procesar(dia, csv, rng):
     conteo = Counter()
-    piezas: list[pd.DataFrame] = []
+    piezas = []
     filas_leidas = 0
 
     lector = pd.read_csv(csv, chunksize=TAM_TROZO, low_memory=False)
@@ -119,7 +119,7 @@ def procesar(dia: str, csv: Path, rng: np.random.Generator) -> tuple[pd.DataFram
         filas_leidas += len(tr)
         tr = limpiar_trozo(tr)
 
-        # Distribucion REAL, antes de muestrear.
+        # Contamos antes de muestrear, si no perdemos el desbalance real.
         conteo.update(tr["Label"].value_counts().to_dict())
 
         es_benigno = tr["Label"] == "Benign"
@@ -135,7 +135,8 @@ def procesar(dia: str, csv: Path, rng: np.random.Generator) -> tuple[pd.DataFram
 
     df = pd.concat(piezas, ignore_index=True)
 
-    # Tope por clase de ataque (global dentro del dia; cada ataque vive en 1-2 dias).
+    # Tope por ataque. Se aplica dentro del dia, que alcanza porque cada ataque
+    # ocurre solo en uno o dos dias.
     partes = []
     for etiqueta, grupo in df.groupby("Label", observed=True):
         if etiqueta != "Benign" and len(grupo) > MAX_POR_CLASE:
@@ -147,7 +148,7 @@ def procesar(dia: str, csv: Path, rng: np.random.Generator) -> tuple[pd.DataFram
     return df, conteo
 
 
-def main() -> int:
+def main():
     for d in (DIR_RAW, DIR_INTERIM, DIR_PROC):
         d.mkdir(parents=True, exist_ok=True)
 
@@ -157,21 +158,22 @@ def main() -> int:
         if desconocidos:
             log(f"dias no reconocidos: {desconocidos}")
             log(f"validos: {DIAS}")
-            return 2
+            return
         dias = pedidos
     else:
         dias = DIAS
 
     rng = np.random.default_rng(SEMILLA)
-    conteo_total: Counter = Counter()
-    conteo_por_dia: dict[str, dict] = {}
+    conteo_total = Counter()
+    conteo_por_dia = {}
     filas_muestra = 0
 
-    # Si ya hay conteos de una corrida previa, se arrastran para no perderlos.
-    # Se lee UNA sola vez: el archivo se reescribe tras cada dia, asi que
-    # consultarlo mas adelante ya no devolveria el contenido original.
+    # Si ya corrimos antes, arrastramos los conteos para no perderlos. Hay que
+    # leer el archivo UNA sola vez aca arriba: lo reescribimos despues de cada
+    # dia, asi que si lo consultamos mas adelante ya no tiene lo original.
+    # (Esto nos costo perder los conteos de un dia la primera vez.)
     archivo_conteo = DIR_PROC / "conteo_etiquetas_real.json"
-    conteo_previo: dict[str, dict] = {}
+    conteo_previo = {}
     if archivo_conteo.exists():
         guardado = json.loads(archivo_conteo.read_text(encoding="utf-8"))
         conteo_previo = guardado.get("por_dia", {})
@@ -185,25 +187,25 @@ def main() -> int:
 
         if salida.exists():
             if dia in conteo_previo:
-                log("  parquet ya existe, se omite (borralo para reprocesar)")
+                log("  el parquet ya existe, lo saltamos (borralo para reprocesar)")
                 conteo_por_dia[dia] = conteo_previo[dia]
                 conteo_total.update(conteo_previo[dia])
                 filas_muestra += len(pd.read_parquet(salida, columns=["Label"]))
                 continue
-            # El parquet existe pero no hay conteos guardados de ese dia: se
-            # reprocesa, porque si no la distribucion real quedaria incompleta.
-            log("  parquet existe pero sin conteos guardados -> se reprocesa")
+            # Esta el parquet pero no los conteos de ese dia, hay que reprocesar
+            # o la distribucion real queda incompleta.
+            log("  el parquet existe pero sin conteos, se reprocesa")
 
         csv = descargar(dia)
         try:
             df, conteo = procesar(dia, csv, rng)
         finally:
-            # El CSV crudo se borra siempre: es lo que mantiene el disco a salvo.
+            # El CSV se borra siempre, pase lo que pase. Es lo que salva el disco.
             if csv.exists():
                 csv.unlink()
-                log("  CSV crudo borrado")
+                log("  CSV borrado")
 
-        df.to_parquet(salida, index=False, compression="zstd")
+        df.to_parquet(salida, index=False)
         filas_muestra += len(df)
         conteo_total.update(conteo)
         conteo_por_dia[dia] = dict(conteo)
@@ -212,8 +214,8 @@ def main() -> int:
             f"({salida.stat().st_size / 1e6:.0f} MB)")
         log(f"  etiquetas del dia: {dict(conteo)}")
 
-        # Se va guardando por si se corta la corrida.
-        (DIR_PROC / "conteo_etiquetas_real.json").write_text(
+        # Guardamos despues de cada dia por si se corta la corrida.
+        archivo_conteo.write_text(
             json.dumps(
                 {"total": dict(conteo_total), "por_dia": conteo_por_dia},
                 indent=2, ensure_ascii=False,
@@ -226,8 +228,7 @@ def main() -> int:
     log(f"filas en la muestra de trabajo:      {filas_muestra:,}")
     for etiqueta, k in sorted(conteo_total.items(), key=lambda x: -x[1]):
         log(f"  {etiqueta:<28} {k:>12,}")
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

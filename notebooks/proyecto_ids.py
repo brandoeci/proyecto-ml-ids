@@ -83,7 +83,7 @@ import seaborn as sns
 RAIZ = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
 sys.path.insert(0, str(RAIZ / "src"))
 
-import config as cfg  # noqa: E402
+import config as cfg
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -106,22 +106,21 @@ COLOR_FAM = dict(zip(
 ))
 
 
-def guardar(nombre: str) -> None:
-    """Guarda la figura actual en reports/figuras para reusarla en las diapositivas."""
+def guardar(nombre):
+    """Guarda la figura en reports/figuras para despues usarla en las diapositivas."""
     plt.savefig(cfg.DIR_FIG / f"{nombre}.png", bbox_inches="tight")
 
 
 def muestrear_por_grupo(datos, n_por_grupo, col="familia", minimo=0,
                         semilla=cfg.SEMILLA):
-    """Toma hasta `n_por_grupo` filas de cada grupo, conservando todas las columnas.
+    """Saca hasta n_por_grupo filas de cada grupo.
 
-    Se trabaja sobre los indices y no con `groupby(...).apply(...)` porque desde
-    pandas 3 el `apply` ya no recibe la columna de agrupacion, y el resultado
-    saldria sin la columna `familia`.
+    Lo hacemos con los indices y no con groupby(...).apply(...) porque en
+    pandas 3 el apply ya no recibe la columna por la que se agrupa y el
+    resultado sale sin la columna familia. Nos toco cambiarlo por eso.
 
-    `minimo` garantiza un piso de filas por grupo: sirve para que las clases
-    diminutas (Ataque web tiene 865 flujos en total) no desaparezcan al
-    submuestrear.
+    minimo es un piso de filas por grupo, para que las clases chiquitas
+    (Ataque web tiene 865 flujos en total) no se pierdan al submuestrear.
     """
     trozos = []
     for _, idx in datos.groupby(col, observed=True).groups.items():
@@ -131,7 +130,7 @@ def muestrear_por_grupo(datos, n_por_grupo, col="familia", minimo=0,
     return datos.loc[np.concatenate(trozos)]
 
 
-import sklearn  # noqa: E402
+import sklearn
 
 print("python     ", sys.version.split()[0])
 print("pandas     ", pd.__version__)
@@ -854,29 +853,29 @@ from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 
 def log_con_signo(X):
-    """log(1+|x|) conservando el signo. Domina las colas sin recortar nada."""
+    """log(1+|x|) pero guardando el signo. Achica las colas sin recortar nada."""
     return np.sign(X) * np.log1p(np.abs(X))
 
 
 # OJO: aqui NO se usa QuantileTransformer, y es una decision deliberada.
 #
-# La transformacion por cuantiles, ajustada solo con trafico benigno, RECORTA
-# cualquier valor que caiga fuera del rango observado: lo manda al cuantil
-# minimo o maximo del benigno. Para un detector de anomalias eso es
-# autodestructivo, porque "estar fuera del rango normal" es justo la senal que
-# tiene que detectar. Un flujo con un ritmo de paquetes mil veces superior a lo
-# normal quedaba indistinguible del benigno mas extremo.
+# La transformacion por cuantiles, ajustada solo con trafico benigno, recorta
+# todo valor que caiga fuera del rango que vio: lo manda al cuantil minimo o
+# maximo del benigno. Para un detector de anomalias eso no sirve, porque estar
+# fuera del rango normal es justamente lo que queremos detectar. Un flujo con
+# un ritmo de paquetes mil veces mayor al normal quedaba igual que el benigno
+# mas extremo.
 #
-# Lo medimos: con cuantiles, el One-Class SVM daba ROC-AUC 0.38 (PEOR que el
-# azar) y el Isolation Forest 0.54. Con log + estandarizacion los valores
+# Lo medimos: con cuantiles, el One-Class SVM daba ROC-AUC 0.38, peor que el
+# azar, y el Isolation Forest 0.54. Con log y estandarizacion los valores
 # extremos siguen siendo extremos.
 pre_e1 = Pipeline([
     ("imputar", SimpleImputer(strategy="median")),
-    ("log", FunctionTransformer(log_con_signo, feature_names_out="one-to-one")),
+    ("log", FunctionTransformer(log_con_signo)),
     ("escalar", StandardScaler()),
 ])
-# float32 y no float64: la mitad de memoria y ninguna diferencia practica en
-# datos que vienen de contadores de red. En un portatil de 16 GB esto importa.
+# float32 y no float64: ocupa la mitad de memoria y para estos datos da igual.
+# En un portatil de 16 GB la diferencia se siente.
 Xe1_ajuste = pre_e1.fit_transform(ben_ajuste[VARIABLES]).astype(np.float32)   # SOLO benignos
 Xe1_calib = pre_e1.transform(ben_calib[VARIABLES]).astype(np.float32)
 Xe1_test = pre_e1.transform(te_e1[VARIABLES]).astype(np.float32)
