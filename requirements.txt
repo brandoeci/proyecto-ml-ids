@@ -14,8 +14,6 @@ scipy
 jupyterlab
 notebook
 nbformat
-nbclient
-nbconvert
 jupytext
 ipykernel
 

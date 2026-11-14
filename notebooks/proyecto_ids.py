@@ -14,51 +14,48 @@
 # %% [markdown]
 # # Detección de ataques de red en dos etapas
 #
-# ### ¿Es anómalo? → ¿Cómo se llama?
-#
-# **MLEA_M — Machine Learning · 2026-2**
+# **MLEA_M, Machine Learning, 2026-2**
 # Escuela Colombiana de Ingeniería Julio Garavito
 #
-# **Integrantes:** Hildebrando Peña · Isaac · Jared · Angélica
-# *(completar apellidos de Isaac, Jared y Angélica antes de entregar)*
+# **Integrantes:** Hildebrando Peña, Isaac, Jared Farfán, Angélica
 #
-# **Dataset:** CSE-CIC-IDS2018 — Canadian Institute for Cybersecurity, University of New Brunswick
+# **Dataset:** CSE-CIC-IDS2018, Canadian Institute for Cybersecurity, University of New Brunswick
 #
 # ---
 #
 # ## La idea en una frase
 #
-# Un detector de intrusiones que **primero decide si un flujo de red es anómalo**
-# —sin haber visto nunca un ataque— y **después le pone nombre** al ataque, con la
-# honestidad de responder *"no sé"* cuando no se parece a nada conocido.
+# Un detector de intrusiones que primero decide si un flujo de red es anómalo
+# (sin haber visto nunca un ataque) y después le pone nombre al ataque, con la
+# honestidad de responder "no sé" cuando no se parece a nada conocido.
 #
 # ## Por qué en dos etapas y no en una
 #
 # Un clasificador único de 7 clases (benigno + 6 familias de ataque) solo reconoce
-# lo que ya vio. En seguridad eso es justo el problema: **el ataque que importa es
-# el que todavía no está en el dataset.** Separar las etapas permite que cada una
+# lo que ya vio. En seguridad eso es justo el problema: el ataque que importa es
+# el que todavía no está en el dataset. Separar las etapas permite que cada una
 # resuelva un problema distinto:
 #
 # | | Etapa 1 | Etapa 2 |
 # |---|---|---|
 # | Pregunta | ¿esto es normal? | ¿qué ataque es? |
-# | Tipo de problema | detección de anomalías (**no supervisado**) | clasificación **multiclase** |
-# | Qué ve al entrenar | **solo tráfico benigno** | solo flujos de ataque |
+# | Tipo de problema | detección de anomalías (no supervisado) | clasificación multiclase |
+# | Qué ve al entrenar | solo tráfico benigno | solo flujos de ataque |
 # | Qué aporta | detecta lo nunca visto | da un nombre accionable |
 #
 # La etapa 1 entrenada únicamente con tráfico benigno es lo que hace realista el
-# montaje: una organización sí tiene registros de su tráfico normal, pero **no
-# tiene ataques etiquetados de su propia red.**
+# montaje: una organización sí tiene registros de su tráfico normal, pero no
+# tiene ataques etiquetados de su propia red.
 #
 # ## Índice
 #
 # 1. Problema y motivación
 # 2. Datos
 # 3. Análisis exploratorio (EDA)
-# 4. Modelos — etapa 1 y etapa 2
+# 4. Modelos, etapa 1 y etapa 2
 # 5. Comparación de métricas
 # 6. Optimización de hiperparámetros
-# 7. Ataques desconocidos (*open-set*)
+# 7. Ataques desconocidos (open-set)
 # 8. El sistema completo en cascada
 # 9. Aplicación
 # 10. Conclusiones
@@ -148,29 +145,29 @@ print("semilla    ", cfg.SEMILLA)
 #
 # ## El problema
 #
-# Un centro de operaciones de seguridad (SOC) recibe **millones de flujos de red
-# por día**. Un flujo es el resumen de una conversación entre dos máquinas:
+# Un centro de operaciones de seguridad (SOC) recibe millones de flujos de red
+# por día. Un flujo es el resumen de una conversación entre dos máquinas:
 # duración, cuántos paquetes fueron y volvieron, tamaños, banderas TCP, ritmo.
 # Dentro de ese volumen hay un puñado de conexiones que son un ataque, y revisarlas
 # a mano es imposible.
 #
 # Las reglas tradicionales (firmas tipo Snort o Suricata) funcionan bien para lo
-# que ya está catalogado, pero **solo detectan lo que alguien escribió antes**.
+# que ya está catalogado, pero solo detectan lo que alguien escribió antes.
 # Un ataque nuevo pasa derecho.
 #
 # ## Qué tipo de problema es
 #
-# Este trabajo combina **dos** de los tipos vistos en el curso, y eso es
+# Este trabajo combina dos de los tipos vistos en el curso, y eso es
 # deliberado:
 #
-# - **Etapa 1 — detección de anomalías (aprendizaje no supervisado).**
-#   Se modela qué es "normal" usando *solamente* tráfico benigno y se marca lo
+# - Etapa 1, detección de anomalías (aprendizaje no supervisado).
+#   Se modela qué es "normal" usando solamente tráfico benigno y se marca lo
 #   que se desvía. No se le muestra ni un ataque durante el entrenamiento.
-# - **Etapa 2 — clasificación multiclase (aprendizaje supervisado).**
-#   Dado un flujo ya marcado como sospechoso, se predice a qué **familia** de
+# - **Etapa 2, clasificación multiclase (aprendizaje supervisado).**
+#   Dado un flujo ya marcado como sospechoso, se predice a qué familia de
 #   ataque pertenece, con opción de rechazar la predicción.
 #
-# Además se usa **clustering** (K-Means) en el EDA para explorar la estructura de
+# Además se usa clustering (K-Means) en el EDA para explorar la estructura de
 # los datos antes de modelar.
 #
 # ## Por qué importa
@@ -179,22 +176,22 @@ print("semilla    ", cfg.SEMILLA)
 #
 # | Error | Qué significa | Costo |
 # |---|---|---|
-# | **Falso negativo** | un ataque real pasa inadvertido | brecha de seguridad, datos exfiltrados |
-# | **Falso positivo** | tráfico normal genera una alerta | tiempo del analista; en exceso, *alert fatigue* y se empieza a ignorar el sistema |
+# | Falso negativo | un ataque real pasa inadvertido | brecha de seguridad, datos exfiltrados |
+# | Falso positivo | tráfico normal genera una alerta | tiempo del analista; en exceso, alert fatigue y se empieza a ignorar el sistema |
 #
-# Por eso **la exactitud (*accuracy*) es una métrica engañosa acá**: con ~83% de
+# Por eso la exactitud (accuracy) es una métrica engañosa acá: con ~83% de
 # tráfico benigno, un modelo que diga "todo normal" obtiene 83% de exactitud y
-# detecta exactamente cero ataques. El trabajo se evalúa con *recall* por clase,
+# detecta exactamente cero ataques. El trabajo se evalúa con recall por clase,
 # F1 macro y precisión a un presupuesto fijo de falsas alarmas.
 #
 # ## Qué decisiones mejora
 #
-# 1. **Priorizar la cola de alertas** — el analista atiende primero lo que el
+# 1. **Priorizar la cola de alertas**: el analista atiende primero lo que el
 #    modelo marca con más confianza, en vez de orden de llegada.
-# 2. **Enrutar automáticamente** — un DDoS va a mitigación de red; una fuerza
+# 2. **Enrutar automáticamente**: un DDoS va a mitigación de red; una fuerza
 #    bruta SSH va a bloqueo de credenciales. Son respuestas distintas.
-# 3. **No ocultar lo desconocido** — una alerta que dice *"anómalo, familia
-#    desconocida"* es información valiosa; una que dice "DoS" cuando no lo es,
+# 3. **No ocultar lo desconocido**: una alerta que dice "anómalo, familia
+#    desconocida" es información valiosa; una que dice "DoS" cuando no lo es,
 #    manda al analista por el camino equivocado.
 
 # %% [markdown]
@@ -205,14 +202,15 @@ print("semilla    ", cfg.SEMILLA)
 #
 # **CSE-CIC-IDS2018**, del Canadian Institute for Cybersecurity (University of New
 # Brunswick) junto con el Communications Security Establishment de Canadá.
-# Es uno de los *benchmarks* públicos más usados en detección de intrusiones.
+# Es uno de los benchmarks públicos más usados en detección de intrusiones.
 #
 # - Acceso: bucket público de AWS S3 `s3://cse-cic-ids2018/` (sin credenciales)
-# - Lo que usamos: la carpeta *Processed Traffic Data for ML Algorithms* —
-#   **10 archivos CSV, 6.4 GB**, flujos ya extraídos con la herramienta CICFlowMeter
-# - *(Existe además la captura cruda en `pcap`, de unos 220 GB: fuera de alcance
-#   para este trabajo y no necesaria, porque las variables de flujo ya están
-#   calculadas.)*
+# - Lo que usamos: la carpeta Processed Traffic Data for ML Algorithms:
+#   10 archivos CSV, 6.4 GB, con los flujos ya extraídos con la herramienta
+#   CICFlowMeter
+# - Existe además la captura cruda en `pcap`, de unos 220 GB. Queda fuera de
+#   alcance para este trabajo y tampoco hace falta, porque las variables de
+#   flujo ya vienen calculadas.
 #
 # El montaje original es una red víctima de 50 máquinas en AWS atacada durante
 # **10 días** (14 de febrero al 2 de marzo de 2018) con una batería de ataques
@@ -220,27 +218,27 @@ print("semilla    ", cfg.SEMILLA)
 #
 # ## Tamaño
 #
-# - **16.2 millones de flujos** en total, **79 variables predictoras** + etiqueta
-# - Trabajamos sobre una **muestra** (ver más abajo): el archivo del 20 de febrero
+# - **16.2 millones de flujos** en total, 79 variables predictoras + etiqueta
+# - Trabajamos sobre una muestra (ver más abajo): el archivo del 20 de febrero
 #   pesa 3.8 GB por sí solo y el equipo tiene 23 GB libres de disco
 #
 # ## Cómo se construyó la muestra, y por qué
 #
-# `src/ingest.py` recorre los 10 archivos **uno a uno**: descarga, lee por trozos,
-# muestrea, guarda en Parquet y **borra el CSV crudo** antes de pasar al siguiente.
+# `src/ingest.py` recorre los 10 archivos uno a uno: descarga, lee por trozos,
+# muestrea, guarda en Parquet y borra el CSV crudo antes de pasar al siguiente.
 # El pico de disco se queda por debajo de 4.5 GB en vez de 6.4 GB.
 #
-# El muestreo **no es uniforme**, y eso es una decisión, no un descuido:
+# El muestreo no es uniforme, y eso es una decisión, no un descuido:
 #
 # - **Todos los flujos de ataque se conservan** (con un tope de 100.000 por
 #   etiqueta, para que una sola no domine)
 # - **El tráfico benigno se submuestrea al 8%**
 #
 # Razón: las clases minoritarias son el objeto de estudio. `SQL Injection` tiene
-# 87 flujos en 16 millones — submuestrearla la borraría del mapa.
+# 87 flujos en 16 millones, submuestrearla la borraría del mapa.
 #
 # **Importante para no engañarnos:** durante la ingesta se contó la distribución
-# **real y completa** de las 16.2 millones de filas *antes* de muestrear, y está
+# **real y completa** de las 16.2 millones de filas antes de muestrear, y está
 # guardada en `conteo_etiquetas_real.json`. El EDA muestra el desbalance
 # verdadero; el modelado ocurre sobre la muestra. Las dos cosas se reportan por
 # separado.
@@ -287,30 +285,30 @@ for nombre, cols in grupos.items():
 #
 # | Variable | Qué mide | Por qué sirve |
 # |---|---|---|
-# | `Flow Duration` | duración del flujo en microsegundos | un *slowloris* abre conexiones y las deja colgadas: duración larguísima con casi cero datos |
+# | `Flow Duration` | duración del flujo en microsegundos | un slowloris abre conexiones y las deja colgadas: duración larguísima con casi cero datos |
 # | `Flow Pkts/s`, `Fwd Pkts/s` | ritmo de paquetes | una inundación DDoS dispara el ritmo varios órdenes de magnitud |
 # | `Tot Fwd Pkts` / `Tot Bwd Pkts` | paquetes de ida y de vuelta | asimetría extrema = el servidor no está respondiendo (o no alcanza) |
 # | `SYN/RST/ACK Flag Cnt` | banderas TCP | un barrido de puertos deja un rastro inconfundible de SYN sin ACK |
-# | `Init Fwd Win Byts` | ventana TCP inicial | delata el sistema operativo y la herramienta: valores constantes en tráfico generado por *scripts* |
+# | `Init Fwd Win Byts` | ventana TCP inicial | delata el sistema operativo y la herramienta: valores constantes en tráfico generado por scripts |
 # | `Fwd Pkt Len Mean/Std` | tamaño de los paquetes | una fuerza bruta manda paquetes casi idénticos: desviación ~0 |
 #
 # ## Problemas detectados en los datos
 #
-# Esta sección vale su propio espacio porque **CSE-CIC-IDS2018 tiene defectos
-# conocidos y documentados**, y detectarlos es parte del trabajo:
+# Esta sección vale su propio espacio porque CSE-CIC-IDS2018 tiene defectos
+# conocidos y documentados, y detectarlos es parte del trabajo:
 #
 # | # | Problema | Dónde | Qué hicimos |
 # |---|---|---|---|
-# | 1 | El archivo `Thuesday-20-02-2018` trae **4 columnas extra** (`Flow ID`, `Src IP`, `Src Port`, `Dst IP`) que los otros 9 no tienen | ingesta | se descartan: son identificadores de red, no comportamiento. Si se dejaran, el modelo memorizaría la IP del atacante |
-# | 2 | **Fila de encabezado repetida** en medio de varios archivos | ingesta | se filtran las filas con `Label == "Label"` |
-# | 3 | Celdas con el texto `"Infinity"` y `NaN` en `Flow Byts/s` y `Flow Pkts/s` (división por duración cero) | ingesta + EDA | se convierten a `NaN` y se imputan con la mediana **del train** |
-# | 4 | **Duplicados exactos** masivos: 28,8% de la muestra, y dos ataques son 99,95% copias | preparación + EDA §3.9 | se eliminan; si no, el mismo flujo cae en train y test y las métricas se inflan |
-# | 5 | **Columnas constantes** (varianza cero) | EDA §3.3 | se identifican y se descartan |
-# | 6 | **Pares de variables casi redundantes** (correlación > 0.98) | EDA §3.4 | se reportan y se poda una de cada par |
-# | 7 | **`Dst Port` es una fuga de información** | EDA §3.5 | se demuestra el atajo y se excluye del modelo final |
-# | 8 | La clase **`Infilteration` es prácticamente indistinguible** del tráfico benigno | EDA §3.6 y conclusiones | se conserva y se reporta su mal desempeño como hallazgo, no se esconde |
-# | 9 | **Desbalance extremo** (~83% benigno; `SQL Injection` = 87 flujos de 16.2 M) | todo el trabajo | agrupación en familias, métricas macro, `class_weight`, y jamás *accuracy* sola |
-# | 10 | El nombre de la etiqueta viene con **error tipográfico** (`Infilteration`) y escritura inconsistente entre días | preparación | normalización de etiquetas antes de mapear a familias |
+# | 1 | El archivo `Thuesday-20-02-2018` trae 4 columnas extra (`Flow ID`, `Src IP`, `Src Port`, `Dst IP`) que los otros 9 no tienen | ingesta | se descartan: son identificadores de red, no comportamiento. Si se dejaran, el modelo memorizaría la IP del atacante |
+# | 2 | Fila de encabezado repetida en medio de varios archivos | ingesta | se filtran las filas con `Label == "Label"` |
+# | 3 | Celdas con el texto `"Infinity"` y `NaN` en `Flow Byts/s` y `Flow Pkts/s` (división por duración cero) | ingesta + EDA | se convierten a `NaN` y se imputan con la mediana del train |
+# | 4 | Duplicados exactos masivos: 28,8% de la muestra, y dos ataques son 99,95% copias | preparación + EDA §3.9 | se eliminan; si no, el mismo flujo cae en train y test y las métricas se inflan |
+# | 5 | Columnas constantes (varianza cero) | EDA §3.3 | se identifican y se descartan |
+# | 6 | Pares de variables casi redundantes (correlación > 0.98) | EDA §3.4 | se reportan y se poda una de cada par |
+# | 7 | `Dst Port` es una fuga de información | EDA §3.5 | se demuestra el atajo y se excluye del modelo final |
+# | 8 | La clase `Infilteration` es prácticamente indistinguible del tráfico benigno | EDA §3.6 y conclusiones | se conserva y se reporta su mal desempeño como hallazgo, no se esconde |
+# | 9 | Desbalance extremo (~83% benigno; `SQL Injection` = 87 flujos de 16.2 M) | todo el trabajo | agrupación en familias, métricas macro, `class_weight`, y jamás accuracy sola |
+# | 10 | El nombre de la etiqueta viene con error tipográfico (`Infilteration`) y escritura inconsistente entre días | preparación | normalización de etiquetas antes de mapear a familias |
 
 # %%
 # Prueba 3: faltantes e infinitos que quedaron tras la ingesta
@@ -332,7 +330,7 @@ print(f"\nValores infinitos restantes: {int(np.isinf(df[feats_todas].to_numpy())
 #
 # ## 3.1 El desbalance real, sin maquillaje
 #
-# Primero la distribución **verdadera** sobre los 16.2 millones de flujos, y al
+# Primero la distribución verdadera sobre los 16.2 millones de flujos, y al
 # lado la de nuestra muestra de trabajo. La escala es logarítmica porque sin ella
 # las clases pequeñas no se ven.
 
@@ -367,15 +365,15 @@ print(f"Clase más pequeña                  : {serie_real.index[-1]} con {int(s
 print(f"Razón mayoritaria : minoritaria    : {serie_real.max() / serie_real.min():,.0f} a 1")
 
 # %% [markdown]
-# > **Insight 1 — la métrica obvia es una trampa.**
-# > Con ~83% de tráfico benigno, predecir "todo normal" da ~83% de *accuracy* y
-# > cero ataques detectados. Y la desproporción llega a **cientos de miles a uno**
+# > **Insight 1, la métrica obvia es una trampa.**
+# > Con ~83% de tráfico benigno, predecir "todo normal" da ~83% de accuracy y
+# > cero ataques detectados. Y la desproporción llega a cientos de miles a uno
 # > entre la clase mayor y la menor. Esto decide todo el diseño de evaluación:
-# > F1 macro, *recall* por clase y curvas precisión-*recall*, nunca *accuracy* sola.
+# > F1 macro, recall por clase y curvas precisión-recall, nunca accuracy sola.
 #
 # ## 3.2 De 14 etiquetas a 6 familias
 #
-# Varias etiquetas son solo **la herramienta usada** para el mismo comportamiento:
+# Varias etiquetas son solo la herramienta usada para el mismo comportamiento:
 # `DDOS attack-HOIC` y `DDoS attacks-LOIC-HTTP` son dos programas distintos para
 # inundar un servidor. Agrupamos por familia porque (a) es lo que le importa al
 # analista, que responde igual a las dos, y (b) le da a la etapa 2 clases con
@@ -421,16 +419,16 @@ guardar("02_familias_y_calendario")
 plt.show()
 
 # %% [markdown]
-# > **Insight 2 — cada ataque vive en días específicos.**
+# > **Insight 2, cada ataque vive en días específicos.**
 # > El mapa de calor lo deja claro: `Botnet` solo existe el 2 de marzo,
-# > `Infiltracion` solo el 28-02 y el 01-03. Esto **prohíbe** partir train/test
+# > `Infiltracion` solo el 28-02 y el 01-03. Esto prohíbe partir train/test
 # > cortando por días: familias completas quedarían fuera del entrenamiento.
 # > La partición que sí funciona se explica en §3.10.
 #
 # ## 3.3 Columnas constantes
 #
 # CICFlowMeter calcula variables que en este montaje nunca varían (por ejemplo
-# las de *bulk rate*, que quedan en cero para todo el tráfico). No aportan nada y
+# las de bulk rate, que quedan en cero para todo el tráfico). No aportan nada y
 # estorban en el escalado y en la correlación.
 
 # %%
@@ -491,8 +489,8 @@ plt.show()
 # decisiones de diseño.
 #
 # `Dst Port` es el puerto de destino: 80 es web, 22 es SSH, 21 es FTP. Como los
-# ataques del experimento se dirigieron a servicios específicos, **el puerto casi
-# identifica el ataque por sí solo**. Un modelo que lo use obtiene métricas
+# ataques del experimento se dirigieron a servicios específicos, el puerto casi
+# identifica el ataque por sí solo. Un modelo que lo use obtiene métricas
 # espectaculares sin haber aprendido nada sobre comportamiento de red: aprendió el
 # calendario del experimento.
 #
@@ -535,15 +533,15 @@ tabla_fuga = pd.DataFrame(prueba_fuga).T
 display(tabla_fuga.style.format({"accuracy": "{:.4f}", "f1_macro": "{:.4f}"}))
 
 # %% [markdown]
-# > **Insight 3 — `Dst Port` es un atajo, no una señal.**
-# > Un árbol con **2 variables** (puerto y protocolo) alcanza una exactitud
+# > **Insight 3, `Dst Port` es un atajo, no una señal.**
+# > Un árbol con 2 variables (puerto y protocolo) alcanza una exactitud
 # > comparable a uno con casi 50 variables de comportamiento. Eso no significa que
-# > el puerto sea una gran variable: significa que **en este dataset el puerto
-# > codifica qué experimento se estaba corriendo.**
+# > el puerto sea una gran variable: significa que en este dataset el puerto
+# > codifica qué experimento se estaba corriendo.
 # >
 # > En una red real el atacante elige el puerto; un modelo apoyado en él se rompe
-# > el primer día que alguien ataque SSH en el puerto 2222. **Decisión: `Dst Port`
-# > se excluye de los modelos finales.** Es una decisión que *baja* nuestras
+# > el primer día que alguien ataque SSH en el puerto 2222. Decisión: `Dst Port`
+# > se excluye de los modelos finales. Es una decisión que baja nuestras
 # > métricas reportadas y las vuelve creíbles.
 
 # %%
@@ -607,8 +605,8 @@ print(f"Varianza explicada por 2 componentes: {pca.explained_variance_ratio_.sum
 # %% [markdown]
 # ## 3.7 Clustering exploratorio con K-Means
 #
-# Pregunta: **¿la estructura natural de los datos coincide con las familias de
-# ataque?** Si K-Means —que no ve ninguna etiqueta— reconstruye los grupos, es
+# Pregunta: ¿la estructura natural de los datos coincide con las familias de
+# ataque? Si K-Means (que no ve ninguna etiqueta) reconstruye los grupos, es
 # evidencia de que el problema es separable y de que la etapa 1 no supervisada
 # tiene sentido.
 
@@ -669,8 +667,8 @@ for c in sorted(sub_cl["cluster"].unique()):
     print(f"  cluster {c}: {fila.idxmax():<14} {fila.max():.1%}")
 
 # %% [markdown]
-# > **Insight 4 — hay estructura, pero no es gratis.**
-# > Varios clusters salen casi puros en una familia *sin haber visto etiquetas*:
+# > **Insight 4, hay estructura, pero no es gratis.**
+# > Varios clusters salen casi puros en una familia sin haber visto etiquetas:
 # > el comportamiento de red de un DDoS y de una fuerza bruta sí son
 # > intrínsecamente distintos. Pero otros clusters mezclan `Benigno` con
 # > `Infiltracion`, que es exactamente el problema que vamos a encontrar al
@@ -705,18 +703,18 @@ guardar("07_boxplots_familias")
 plt.show()
 
 # %% [markdown]
-# > **Insight 5 — cada familia tiene una firma legible.**
-# > `DoS` muestra duraciones larguísimas con pocos paquetes (*slowloris* dejando
+# > **Insight 5, cada familia tiene una firma legible.**
+# > `DoS` muestra duraciones larguísimas con pocos paquetes (slowloris dejando
 # > conexiones colgadas). `DDoS` dispara `Flow Pkts/s`. `Fuerza bruta` tiene
 # > `Pkt Len Std` casi en cero: manda el mismo paquete miles de veces.
-# > Y **`Infiltracion` se superpone con `Benigno` en todas las variables** — es la
+# > Y `Infiltracion` se superpone con `Benigno` en todas las variables: es la
 # > confirmación visual de lo que ya avisaba el clustering.
 #
 # ## 3.9 Duplicados: el defecto que casi borra dos ataques
 #
 # Ya sabemos que el 28,8% de la muestra eran filas repetidas exactas. Pero el
-# número agregado esconde lo interesante: **la tasa de duplicados no está
-# repartida de forma pareja entre los ataques, ni de lejos.**
+# número agregado esconde lo interesante: la tasa de duplicados no está
+# repartida de forma pareja entre los ataques, ni de lejos.
 
 # %%
 dup = pd.DataFrame({
@@ -746,22 +744,22 @@ guardar("08b_duplicados")
 plt.show()
 
 # %% [markdown]
-# > **Insight 6 — dos ataques del dataset son prácticamente una sola fila repetida.**
+# > Insight 6, dos ataques del dataset son prácticamente una sola fila repetida.
 # >
-# > `FTP-BruteForce` y `DoS attacks-SlowHTTPTest` son **99,95% duplicados
-# > exactos**: de 100.000 flujos cada uno quedan **53 y 54**. En el otro extremo,
+# > `FTP-BruteForce` y `DoS attacks-SlowHTTPTest` son 99,95% duplicados
+# > exactos: de 100.000 flujos cada uno quedan 53 y 54. En el otro extremo,
 # > `DDOS attack-LOIC-UDP` no tiene ni un duplicado.
 # >
 # > Tiene sentido: una fuerza bruta de FTP repite exactamente la misma operación
 # > miles de veces, y CICFlowMeter produce registros idénticos. Pero la
-# > consecuencia es seria: **esos dos tipos de ataque dejan de existir como
-# > material de entrenamiento utilizable.**
+# > consecuencia es seria: esos dos tipos de ataque dejan de existir como
+# > material de entrenamiento utilizable.
 # >
-# > Un trabajo que no deduplique nunca ve este problema — al contrario, obtiene
-# > métricas *excelentes* en esas dos clases, porque está evaluando sobre copias
+# > Un trabajo que no deduplique nunca ve este problema, al contrario, obtiene
+# > métricas excelentes en esas dos clases, porque está evaluando sobre copias
 # > exactas de lo que memorizó.
 # >
-# > **Aquí se nota por qué agrupar en familias fue la decisión correcta:**
+# > Aquí se nota por qué agrupar en familias fue la decisión correcta:
 # > `Fuerza bruta` sobrevive gracias a `SSH-Bruteforce` (50.199 flujos únicos) y
 # > `DoS` sobrevive gracias a `Hulk` y `GoldenEye`. Con las 14 etiquetas
 # > originales, dos clases habrían quedado con ~50 ejemplos.
@@ -772,13 +770,13 @@ plt.show()
 # casi idénticos entre sí; repartidos al azar, el modelo ve en test algo
 # prácticamente igual a lo que memorizó en train, y las métricas salen infladas.
 #
-# Partimos **por tiempo dentro de cada par (día, familia)**: el primer 70% va a
-# train y el último 30% a test. Así el test de cada familia ocurre *después* de su
+# Partimos por tiempo dentro de cada par (día, familia): el primer 70% va a
+# train y el último 30% a test. Así el test de cada familia ocurre después de su
 # train, ninguna ráfaga se reparte entre los dos, y toda familia queda
 # representada en ambos lados.
 #
 # **Por qué no basta cortar por día.** Lo intentamos primero y falló:
-# `Fuerza bruta` se quedó con **53 flujos en test** frente a 50.199 en train. La
+# `Fuerza bruta` se quedó con 53 flujos en test frente a 50.199 en train. La
 # razón es que esos ataques son tan repetitivos que el deduplicado se llevó el 75%
 # de ellos, y los flujos únicos que sobreviven están concentrados al principio de
 # su día. Con 53 ejemplos cualquier métrica de esa familia sería ruido. Afinar el
@@ -807,8 +805,8 @@ plt.show()
 #
 # | # | Insight | Qué decidió |
 # |---|---|---|
-# | 1 | Desbalance de cientos de miles a uno | métricas macro y curvas PR; nunca *accuracy* sola |
-# | 2 | Cada ataque vive en días específicos | partición por tiempo **dentro** de cada día |
+# | 1 | Desbalance de cientos de miles a uno | métricas macro y curvas PR; nunca accuracy sola |
+# | 2 | Cada ataque vive en días específicos | partición por tiempo dentro de cada día |
 # | 3 | `Dst Port` basta para "clasificar" casi todo | se excluye del modelo: era fuga, no señal |
 # | 4 | K-Means recupera varias familias sin etiquetas | la etapa 1 no supervisada es viable |
 # | 5 | `Infiltracion` se superpone con `Benigno` | se predice que fallará, y se reporta |
@@ -820,14 +818,14 @@ plt.show()
 #
 # ## 4.1 Preparación de las matrices
 #
-# Un detalle que decide la honestidad del experimento: **la etapa 1 no puede ver
-# ni un solo ataque, ni siquiera para calcular la escala de las variables.**
+# Un detalle que decide la honestidad del experimento: la etapa 1 no puede ver
+# ni un solo ataque, ni siquiera para calcular la escala de las variables.
 # Por eso hay dos preprocesadores independientes, cada uno ajustado solo con los
 # datos que su etapa tiene derecho a conocer.
 #
 # El tráfico benigno de train se parte en dos:
-# - **ajuste** (80%) — para entrenar los modelos de anomalías
-# - **calibración** (20%) — para elegir el umbral de decisión
+# - **ajuste** (80%), para entrenar los modelos de anomalías
+# - **calibración** (20%), para elegir el umbral de decisión
 #
 # Elegir el umbral sobre los mismos datos de entrenamiento sería hacerse trampa.
 
@@ -934,22 +932,22 @@ rep = pd.DataFrame({"train": pd.Series(ye2_tr).value_counts(),
 display(rep)
 
 # %% [markdown]
-# ## 4.2 Etapa 1 — cinco enfoques para la misma pregunta
+# ## 4.2 Etapa 1, cinco enfoques para la misma pregunta
 #
-# Los cuatro primeros son **no supervisados**: aprenden solo del tráfico benigno.
-# El quinto es un **supervisado** que sí ve las etiquetas de ataque: no es parte
-# del sistema propuesto, está ahí como **techo de referencia** para saber cuánto
+# Los cuatro primeros son no supervisados: aprenden solo del tráfico benigno.
+# El quinto es un supervisado que sí ve las etiquetas de ataque: no es parte
+# del sistema propuesto, está ahí como techo de referencia para saber cuánto
 # cuesta la honestidad de no usar etiquetas.
 #
 # | Modelo | Cómo funciona | Ventaja | Limitación |
 # |---|---|---|---|
-# | **Isolation Forest** | construye árboles con cortes aleatorios; lo raro se aísla en pocos cortes | escala a millones de filas, no asume forma de los datos | pierde sensibilidad ante anomalías "locales" dentro de una zona densa |
-# | **One-Class SVM** | busca una frontera que envuelva los datos normales en un espacio de kernel | frontera flexible, bien fundamentado teóricamente | coste ~O(n²): obliga a submuestrear |
-# | **Local Outlier Factor** | compara la densidad local de un punto con la de sus vecinos | detecta lo que Isolation Forest no ve: anomalías locales | caro en predicción, sensible a `n_neighbors` |
-# | **Autoencoder** | red que comprime y reconstruye; lo normal se reconstruye bien, lo raro no | captura relaciones no lineales entre variables | más hiperparámetros, entrenamiento más lento |
-# | *Random Forest (referencia)* | *clasificador supervisado benigno vs. ataque* | *techo de desempeño alcanzable* | *necesita ataques etiquetados: no existen en la práctica* |
+# | Isolation Forest | construye árboles con cortes aleatorios; lo raro se aísla en pocos cortes | escala a millones de filas, no asume forma de los datos | pierde sensibilidad ante anomalías "locales" dentro de una zona densa |
+# | One-Class SVM | busca una frontera que envuelva los datos normales en un espacio de kernel | frontera flexible, bien fundamentado teóricamente | coste ~O(n²): obliga a submuestrear |
+# | Local Outlier Factor | compara la densidad local de un punto con la de sus vecinos | detecta lo que Isolation Forest no ve: anomalías locales | caro en predicción, sensible a `n_neighbors` |
+# | Autoencoder | red que comprime y reconstruye; lo normal se reconstruye bien, lo raro no | captura relaciones no lineales entre variables | más hiperparámetros, entrenamiento más lento |
+# | Random Forest (referencia) | clasificador supervisado benigno vs. ataque | techo de desempeño alcanzable | necesita ataques etiquetados: no existen en la práctica |
 #
-# Todos producen una **puntuación continua de anomalía** (más alto = más raro),
+# Todos producen una puntuación continua de anomalía (más alto = más raro),
 # no una decisión. El umbral se elige después, en función del presupuesto de
 # falsas alarmas.
 
@@ -1031,22 +1029,22 @@ print(f"RF supervisado     entrenado en {tiempos_e1['Random Forest (referencia)'
       f"(usa etiquetas: NO es parte del sistema propuesto)")
 
 # %% [markdown]
-# ## 4.3 Etapa 2 — seis enfoques para nombrar el ataque
+# ## 4.3 Etapa 2, seis enfoques para nombrar el ataque
 #
 # Aquí sí hay etiquetas, y la diversidad de enfoques es deliberada: cada familia
 # de método tiene una idea distinta de qué significa "parecido".
 #
 # | Modelo | Familia de método | Por qué lo incluimos |
 # |---|---|---|
-# | **Random Forest** | ensamble por *bagging* de árboles | robusto sin escalado, maneja el desbalance con `class_weight` |
-# | **LightGBM** | *boosting* por gradiente (histogramas) | suele ser el mejor en datos tabulares; muy rápido |
-# | **XGBoost** | *boosting* por gradiente (otra implementación) | regularización distinta: contraste útil contra LightGBM |
-# | **k-NN** | basado en instancias | no asume ninguna forma; mide literalmente "a qué se parece" |
-# | **MLP** | red neuronal | capta interacciones no lineales que los árboles aproximan en escalones |
-# | **Regresión logística** | lineal | **línea base obligatoria**: si lo complejo no le gana, no se justifica |
+# | Random Forest | ensamble por bagging de árboles | robusto sin escalado, maneja el desbalance con `class_weight` |
+# | LightGBM | boosting por gradiente (histogramas) | suele ser el mejor en datos tabulares; muy rápido |
+# | XGBoost | boosting por gradiente (otra implementación) | regularización distinta: contraste útil contra LightGBM |
+# | k-NN | basado en instancias | no asume ninguna forma; mide literalmente "a qué se parece" |
+# | MLP | red neuronal | capta interacciones no lineales que los árboles aproximan en escalones |
+# | Regresión logística | lineal | línea base obligatoria: si lo complejo no le gana, no se justifica |
 #
-# Todos devuelven **probabilidades**, no solo etiquetas. Eso es justo lo que
-# después permite decir *"no sé"* cuando ninguna clase convence (§7).
+# Todos devuelven probabilidades, no solo etiquetas. Eso es justo lo que
+# después permite decir "no sé" cuando ninguna clase convence (§7).
 
 # %%
 import lightgbm as lgb
@@ -1109,15 +1107,15 @@ for nombre, (modelo, alcance) in defs_e2.items():
 #
 # ## 5.1 Etapa 1: qué métrica y por qué
 #
-# - **ROC-AUC** — capacidad de ordenar: dado un ataque y un flujo benigno al azar,
+# - **ROC-AUC**: capacidad de ordenar: dado un ataque y un flujo benigno al azar,
 #   ¿con qué probabilidad el modelo le asigna mayor puntuación al ataque?
-# - **PR-AUC** (precisión media) — **la métrica que manda con clases desbalanceadas.**
+# - **PR-AUC** (precisión media), la métrica que manda con clases desbalanceadas.
 #   La ROC-AUC se ve optimista cuando la clase positiva es rara; la PR-AUC no.
-# - **Recall a FPR = 1%** — la métrica operativa. Fijamos el presupuesto de falsas
+# - **Recall a FPR = 1%**: la métrica operativa. Fijamos el presupuesto de falsas
 #   alarmas que un SOC puede tolerar (1% del tráfico benigno) y preguntamos:
-#   *¿cuántos ataques atrapas sin pasarte de ese presupuesto?*
+#   ¿cuántos ataques atrapas sin pasarte de ese presupuesto?
 #
-# El umbral de cada modelo se fija con el **conjunto de calibración** (benignos que
+# El umbral de cada modelo se fija con el conjunto de calibración (benignos que
 # ningún modelo vio al entrenar), nunca con el test.
 
 # %%
@@ -1229,14 +1227,14 @@ print(f"Techo de referencia supervisado: PR-AUC = "
 #
 # Métricas y por qué cada una:
 #
-# - **Accuracy** — se reporta por completitud, pero está dominada por las clases
+# - **Accuracy**: se reporta por completitud, pero está dominada por las clases
 #   grandes. No se usa para decidir.
-# - **F1 macro** — promedia el F1 de cada familia **dándoles el mismo peso.**
+# - **F1 macro**: promedia el F1 de cada familia dándoles el mismo peso.
 #   Esta es la métrica de decisión: `Ataque web` tiene cientos de flujos frente a
 #   cientos de miles de `DDoS`, y nos importa igual.
-# - **F1 ponderado** — el término medio; contrastarlo con el macro muestra cuánto
+# - **F1 ponderado**: el término medio; contrastarlo con el macro muestra cuánto
 #   del desempeño viene solo de las clases grandes.
-# - **Recall por familia** — qué proporción de cada ataque se reconoce. Es lo que
+# - **Recall por familia**: qué proporción de cada ataque se reconoce. Es lo que
 #   de verdad le dice al analista si puede confiar en la etiqueta.
 
 # %%
@@ -1325,13 +1323,13 @@ plt.show()
 # ---
 # # 6. Optimización de hiperparámetros
 #
-# Se usan **tres técnicas**, cada una donde tiene sentido:
+# Se usan tres técnicas, cada una donde tiene sentido:
 #
 # | Técnica | Dónde | Por qué ahí |
 # |---|---|---|
-# | **RandomizedSearchCV** | LightGBM (etapa 2) | el espacio tiene 7 dimensiones, varias continuas; una rejilla completa sería inabordable y la búsqueda aleatoria cubre mejor el espacio con el mismo presupuesto |
-# | **GridSearchCV** | Random Forest (etapa 2) | pocos parámetros y discretos: la rejilla sí es exhaustiva y barata |
-# | **Rejilla manual + ROC-AUC** | Isolation Forest (etapa 1) | **no se puede usar `GridSearchCV`**: el modelo se entrena sin etiquetas, así que no hay `y` para la validación cruzada. Se evalúa cada configuración sobre el conjunto de **calibración** |
+# | RandomizedSearchCV | LightGBM (etapa 2) | el espacio tiene 7 dimensiones, varias continuas; una rejilla completa sería inabordable y la búsqueda aleatoria cubre mejor el espacio con el mismo presupuesto |
+# | GridSearchCV | Random Forest (etapa 2) | pocos parámetros y discretos: la rejilla sí es exhaustiva y barata |
+# | Rejilla manual + ROC-AUC | Isolation Forest (etapa 1) | no se puede usar `GridSearchCV`: el modelo se entrena sin etiquetas, así que no hay `y` para la validación cruzada. Se evalúa cada configuración sobre el conjunto de calibración |
 #
 # Validación cruzada estratificada de 3 pliegues y `f1_macro` como criterio,
 # coherente con lo decidido en §5.2.
@@ -1469,8 +1467,8 @@ else:
 # ## 6.1 Qué detector de la etapa 1 se lleva a la cascada
 #
 # No se puede elegir "el que mejor salio en el test": eso seria usar el test para
-# decidir. Se escoge con el **conjunto de validación** —benignos de calibración
-# mezclados con ataques del *train*— que es el mismo que se usó para la rejilla
+# decidir. Se escoge con el conjunto de validación: benignos de calibración
+# mezclados con ataques del train,  que es el mismo que se usó para la rejilla
 # del Isolation Forest.
 
 # %%
@@ -1506,17 +1504,17 @@ print(f"Modelo final etapa 2: {NOMBRE_E2_FINAL} "
 #
 # Esta sección es el corazón de la propuesta.
 #
-# Un clasificador normal **está obligado a elegir** entre las clases que conoce.
-# Si le llega un ataque que nunca vio, no dice "esto es nuevo": dice *"DDoS"* con
+# Un clasificador normal está obligado a elegir entre las clases que conoce.
+# Si le llega un ataque que nunca vio, no dice "esto es nuevo": dice "DDoS" con
 # 80% de confianza, y manda al analista por el camino equivocado. En seguridad
 # ese error es peor que no detectar nada, porque genera confianza falsa.
 #
 # ## La idea
 #
-# El modelo de la etapa 2 no devuelve una etiqueta sino una **distribución de
-# probabilidad** sobre las familias. Si la probabilidad máxima es baja, significa
-# que *ninguna* familia conocida explica bien el flujo. Entonces en vez de forzar
-# una respuesta, el sistema responde **`Desconocido`**.
+# El modelo de la etapa 2 no devuelve una etiqueta sino una distribución de
+# probabilidad sobre las familias. Si la probabilidad máxima es baja, significa
+# que ninguna familia conocida explica bien el flujo. Entonces en vez de forzar
+# una respuesta, el sistema responde `Desconocido`.
 #
 # $$
 # \hat{y} =
@@ -1528,20 +1526,20 @@ print(f"Modelo final etapa 2: {NOMBRE_E2_FINAL} "
 #
 # ## Cómo se elige $\tau$ sin hacer trampa
 #
-# $\tau$ se fija sobre un conjunto de **validación de familias conocidas**: se
+# $\tau$ se fija sobre un conjunto de validación de familias conocidas: se
 # escoge el valor que conserva el 95% de los aciertos sobre lo que el modelo sí
-# sabe. Es decir, **aceptamos perder 5% de cobertura en lo conocido** a cambio de
+# sabe. Es decir, aceptamos perder 5% de cobertura en lo conocido a cambio de
 # poder reconocer lo desconocido. Nunca se mira el test para elegirlo.
 #
 # ## Cómo se mide que funciona: dejar una familia fuera
 #
 # El experimento es simular un ataque nuevo. Para cada una de las 6 familias:
 #
-# 1. se **borra del entrenamiento** por completo — el modelo nunca la ve
+# 1. se borra del entrenamiento por completo, el modelo nunca la ve
 # 2. se entrena con las 5 restantes y se fija $\tau$ con ellas
 # 3. se le presentan los flujos de la familia oculta y se mide:
-#    - **✓ acierto** → los manda a `Desconocido`
-#    - **✗ error peligroso** → les pone el nombre de otra familia
+#    - si los manda a `Desconocido`, acerto
+#    - si les pone el nombre de otra familia, es el error peligroso
 
 # %%
 # El modelo para este experimento: LightGBM con los hiperparametros encontrados
@@ -1682,13 +1680,13 @@ guardar("15_open_set_confusion")
 plt.show()
 
 # %% [markdown]
-# > **Resultado clave.** El sistema **no inventa un nombre** para la mayoría de los
+# > **Resultado clave.** El sistema no inventa un nombre para la mayoría de los
 # > ataques que nunca vio: los manda a `Desconocido`, que es la respuesta útil
 # > para el analista. El precio es un rechazo indebido pequeño sobre las familias
 # > conocidas, y es un precio que se elige a propósito al fijar $\tau$.
 # >
-# > Las familias que peor se reconocen como desconocidas son las que **se parecen
-# > mucho a otra que sí está en el entrenamiento** (`DoS` y `DDoS` son
+# > Las familias que peor se reconocen como desconocidas son las que se parecen
+# > mucho a otra que sí está en el entrenamiento (`DoS` y `DDoS` son
 # > prácticamente el mismo comportamiento a distinta escala). Eso no es un fallo
 # > del método: es información real sobre la estructura del problema.
 
@@ -1696,8 +1694,8 @@ plt.show()
 # ---
 # # 8. El sistema completo en cascada
 #
-# Ahora se conectan las dos etapas y se evalúa el sistema **de punta a punta**,
-# como se usaría de verdad: entra un flujo cualquiera —la mayoría benignos— y
+# Ahora se conectan las dos etapas y se evalúa el sistema de punta a punta,
+# como se usaría de verdad: entra un flujo cualquiera (la mayoría benignos) y
 # sale una de tres cosas.
 #
 # ```
@@ -1808,9 +1806,9 @@ plt.show()
 # %% [markdown]
 # ## 8.1 ¿Y si hubiéramos hecho un solo modelo de 7 clases?
 #
-# La pregunta obligada: **¿valió la pena partirlo en dos etapas?** La forma de
-# responderla es construir el competidor monolítico —un clasificador supervisado
-# de 7 clases (benigno + 6 familias)— y compararlos en las dos cosas que
+# La pregunta obligada: ¿valió la pena partirlo en dos etapas? La forma de
+# responderla es construir el competidor monolítico , un clasificador supervisado
+# de 7 clases (benigno + 6 familias),  y compararlos en las dos cosas que
 # importan.
 
 # %%
@@ -1922,30 +1920,30 @@ guardar("17_prueba_de_fuego")
 plt.show()
 
 # %% [markdown]
-# > **Hay que leer esta tabla con cuidado, porque no dice lo que uno querría.**
+# > Hay que leer esta tabla con cuidado, porque no dice lo que uno querría.
 # >
 # > El monolítico detecta el 89,9% de los ataques y la cascada el 22,2%. Pero el
-# > monolítico lo consigue **alertando sobre el 23,9% del tráfico benigno**: en una
+# > monolítico lo consigue alertando sobre el 23,9% del tráfico benigno: en una
 # > red de un millón de flujos diarios son ~240.000 alertas falsas al día. Ningún
 # > SOC opera así. La cascada está fijada en 1% de falsas alarmas por diseño, así
-# > que los dos números **no son comparables tal cual**: no están en el mismo punto
+# > que los dos números no son comparables tal cual: no están en el mismo punto
 # > de operación.
 # >
 # > Y ante el ataque nunca visto, el resultado honesto es este: el monolítico
 # > **le pone un nombre falso al 81%** de los flujos de `Botnet`. La cascada casi
-# > no inventa nada (0,5%), pero **tampoco dice `Desconocido`: los ignora como
-# > benignos.** No es que su tercera salida sea mejor aquí — es que la etapa 1 no
+# > no inventa nada (0,5%), pero tampoco dice `Desconocido`: los ignora como
+# > benignos. No es que su tercera salida sea mejor aquí, es que la etapa 1 no
 # > alcanza a marcar esos flujos, así que nunca llegan a la etapa 2 donde está el
 # > mecanismo de rechazo.
 # >
-# > El mecanismo **sí funciona**, y §7 lo demuestra: sobre los flujos que sí
+# > El mecanismo sí funciona, y §7 lo demuestra: sobre los flujos que sí
 # > llegan a la etapa 2, el 99,5% de `Botnet` se reconoce como `Desconocido`. El
-# > cuello de botella es la detección, no el nombramiento. **Ese es el hallazgo, y
-# > es el que marca el trabajo futuro.**
+# > cuello de botella es la detección, no el nombramiento. Ese es el hallazgo, y
+# > es el que marca el trabajo futuro.
 #
 # ## 8.2 ¿Por qué marcó este flujo? Explicabilidad
 #
-# Una alerta sin explicación no es accionable: el analista necesita saber **qué**
+# Una alerta sin explicación no es accionable: el analista necesita saber qué
 # del flujo resultó raro para decidir en segundos si escalarla.
 
 # %%
@@ -2040,7 +2038,7 @@ if len(ej):
 #   Analista N1
 # ```
 #
-# El modelo no reemplaza las firmas de Suricata o Snort: **se suma a ellas.**
+# El modelo no reemplaza las firmas de Suricata o Snort: se suma a ellas.
 # Las firmas cubren lo catalogado con precisión casi perfecta; esta cascada cubre
 # el hueco que las firmas no pueden cubrir por definición.
 #
@@ -2053,17 +2051,17 @@ if len(ej):
 # | `Fuerza bruta` | bloquear la IP de origen, forzar rotación de credenciales |
 # | `Ataque web` | revisar los registros de la aplicación, buscar inyección |
 # | `Botnet` | aislar la máquina interna: ya está comprometida y llamando a casa |
-# | `Infiltracion` | **tratar con desconfianza**: es la familia donde el modelo falla |
-# | `Desconocido` | **escalar a nivel 2.** Es la alerta más valiosa: anómalo y sin precedente |
+# | `Infiltracion` | tratar con desconfianza: es la familia donde el modelo falla |
+# | `Desconocido` | escalar a nivel 2. Es la alerta más valiosa: anómalo y sin precedente |
 #
 # ## Impacto
 #
-# El valor no es "detectar ataques" en abstracto, es **reordenar el trabajo**:
+# El valor no es "detectar ataques" en abstracto, es reordenar el trabajo:
 #
-# - El presupuesto de falsas alarmas es un **parámetro de negocio, no técnico**.
+# - El presupuesto de falsas alarmas es un parámetro de negocio, no técnico.
 #   La curva ROC de §5.1 es literalmente el menú: el jefe del SOC dice cuántas
 #   alertas por hora puede absorber su equipo y de ahí sale el umbral.
-# - La etiqueta de familia **enruta** la alerta al procedimiento correcto sin que
+# - La etiqueta de familia enruta la alerta al procedimiento correcto sin que
 #   el analista tenga que diagnosticar desde cero.
 # - `Desconocido` crea una cola separada y pequeña que concentra lo que de verdad
 #   merece ojos expertos.
@@ -2073,8 +2071,8 @@ if len(ej):
 # Dicho sin maquillaje:
 #
 # 1. **El dataset es de 2018 y de una red sintética en AWS.** El tráfico "normal"
-#    de una empresa real es distinto. La etapa 1 **tiene que reentrenarse con el
-#    tráfico benigno de la red donde se vaya a instalar**; no se puede trasplantar.
+#    de una empresa real es distinto. La etapa 1 tiene que reentrenarse con el
+#    tráfico benigno de la red donde se vaya a instalar; no se puede trasplantar.
 # 2. **Deriva de concepto.** Lo normal cambia (una VPN nueva, un backup nuevo, un
 #    servicio nuevo) y el modelo empieza a alertar de más. Hay que reentrenar
 #    periódicamente y vigilar la tasa de alertas como señal de alarma.
@@ -2126,28 +2124,28 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 #
 # **1. El mejor modelo de cada etapa, y por qué.**
 #
-# - **Etapa 1: el ganador está en la tabla de §5.1 y en la selección de §6.1**,
+# - Etapa 1: el ganador está en la tabla de §5.1 y en la selección de §6.1,
 #   y conviene leer esa tabla entera antes que quedarse con el nombre. Lo que
-#   importa es la forma de los resultados: los detectores que miran **densidad
-#   local** (LOF) y **error de reconstrucción** (autoencoder) van muy por delante
+#   importa es la forma de los resultados: los detectores que miran densidad
+#   local (LOF) y error de reconstrucción (autoencoder) van muy por delante
 #   de los que parten el espacio con cortes globales (Isolation Forest) o
 #   envuelven los datos con una frontera única (One-Class SVM). Tiene sentido: el
-#   tráfico benigno de una red no es *una* nube, son muchas nubes distintas
-#   —web, DNS, backups, correo— y un método global no puede describirlas con una
+#   tráfico benigno de una red no es una nube, son muchas nubes distintas
+#   (web, DNS, backups, correo) y un método global no puede describirlas con una
 #   sola forma.
-#   La brecha contra el Random Forest supervisado es el **precio real de no tener
-#   ataques etiquetados**, y es el número honesto que había que medir.
-# - **Etapa 2: los modelos de árboles con *boosting* y *bagging* quedan
-#   empatados arriba** y bastante por encima de la regresión logística, que es la
+#   La brecha contra el Random Forest supervisado es el precio real de no tener
+#   ataques etiquetados, y es el número honesto que había que medir.
+# - Etapa 2: los modelos de árboles con boosting y bagging quedan
+#   empatados arriba y bastante por encima de la regresión logística, que es la
 #   comparación que justifica usar algo complejo. El ganador exacto entre
 #   LightGBM y Random Forest cambia según la semilla: la diferencia entre ellos
 #   es menor que la incertidumbre del experimento, y decir eso es más honesto que
 #   proclamar un campeón por la tercera cifra decimal.
 #
-# **1b. El escalado de la etapa 1 fue tan determinante como el modelo.**
+# 1b. El escalado de la etapa 1 fue tan determinante como el modelo.
 # Con `QuantileTransformer` ajustado solo con tráfico benigno, el One-Class SVM
-# daba **ROC-AUC 0,38 — peor que lanzar una moneda**. No era culpa del modelo:
-# esa transformación *recorta* los valores fuera del rango benigno, que es
+# daba ROC-AUC 0,38, peor que lanzar una moneda. No era culpa del modelo:
+# esa transformación recorta los valores fuera del rango benigno, que es
 # exactamente la señal que un detector de anomalías necesita. Cambiarlo por
 # logaritmo con signo + estandarización fue la decisión que más movió la aguja
 # en toda la etapa 1. Está en §4.1.
@@ -2155,18 +2153,18 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 # **2. El cuello de botella es la etapa 1, no la etapa 2.** Este es el resultado
 # que más nos sorprendió y el que hay que decir en voz alta.
 #
-# - La **etapa 2 funciona muy bien**: F1 macro de 0,977 nombrando la familia, y
+# - La etapa 2 funciona muy bien: F1 macro de 0,977 nombrando la familia, y
 #   el mecanismo de rechazo manda al 90,6% de las familias ocultas a
 #   `Desconocido` (§7). Nombrar el ataque es, resulta, la parte fácil.
-# - La **etapa 1 es la que limita todo**: con un presupuesto de 1% de falsas
+# - La etapa 1 es la que limita todo: con un presupuesto de 1% de falsas
 #   alarmas detecta el 22,2% de los ataques, frente al 77,0% del Random Forest
-#   supervisado. Como el sistema es una cascada, **lo que la etapa 1 no marca
-#   nunca recibe nombre**, por muy bueno que sea el clasificador que sigue.
+#   supervisado. Como el sistema es una cascada, lo que la etapa 1 no marca
+#   nunca recibe nombre, por muy bueno que sea el clasificador que sigue.
 #
 # La consecuencia es incómoda y la reportamos igual: en la prueba de fuego la
 # cascada casi no usa su salida `Desconocido`, porque los flujos de `Botnet` ni
-# siquiera se marcan como anómalos. Lo que sí queda demostrado es que **no
-# inventa nombres** (0,5% contra el 81% del monolítico), y que el rechazo
+# siquiera se marcan como anómalos. Lo que sí queda demostrado es que no
+# inventa nombres (0,5% contra el 81% del monolítico), y que el rechazo
 # funciona cuando se lo ejercita (§7). La idea de las dos etapas se sostiene;
 # lo que falta es un detector de anomalías mejor, no un clasificador mejor.
 #
@@ -2178,14 +2176,14 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 # aleatorio, esos duplicados caen en train y test a la vez y las métricas se
 # inflan solas. De ahí la partición temporal.
 #
-# **5. `Infiltracion` no se puede detectar con variables de flujo.** Lo avisó el
+# 5. `Infiltracion` no se puede detectar con variables de flujo. Lo avisó el
 # K-Means del EDA, lo confirmaron los boxplots y lo ratificó la matriz de
 # confusión. No es un fallo de los modelos: es un límite de los datos. Lo
 # reportamos en vez de esconderlo.
 #
 # ## Limitaciones del trabajo
 #
-# - Se modeló sobre una **muestra** (1.42 M de 16.2 M de flujos), con el tráfico
+# - Se modeló sobre una muestra (1.42 M de 16.2 M de flujos), con el tráfico
 #   benigno submuestreado al 8%. Las métricas absolutas cambiarían algo con el
 #   dataset completo; las comparaciones entre modelos, que es lo que se usó para
 #   decidir, son estables.
@@ -2201,14 +2199,14 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 # ## Trabajo futuro
 #
 # Ordenado por lo que más movería la aguja, que es lo que dice el punto 2 de
-# arriba: **todo lo que valga la pena hacer está en la etapa 1.**
+# arriba: todo lo que valga la pena hacer está en la etapa 1.
 #
 # 1. **Mejorar el detector de anomalías**, que es el cuello de botella medido.
 #    Tres caminos concretos: un autoencoder de verdad (PyTorch/Keras, con
 #    arquitectura y regularización ajustadas, en vez de aproximarlo con un
 #    `MLPRegressor`); un ensamble que combine las puntuaciones de LOF, autoencoder
 #    e Isolation Forest, que fallan en flujos distintos; y modelar el tráfico
-#    benigno **por servicio** en vez de con un solo modelo global — el EDA ya
+#    benigno por servicio en vez de con un solo modelo global, el EDA ya
 #    mostró que lo normal son varias nubes, no una.
 # 2. **Validar en otro dataset.** El candidato natural es BigFlow-NIDS
 #    (Mendeley, 2026): 66.9 M de flujos NetFlow de 4 fuentes distintas. Permitiría
@@ -2216,10 +2214,10 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 # 3. **Reentrenamiento continuo** de la etapa 1 con ventanas deslizantes, para
 #    medir y absorber la deriva de concepto.
 # 4. **Agrupar las alertas en incidentes.** Un DDoS genera miles de flujos
-#    anómalos que son *un* ataque. Agruparlos por origen y ventana de tiempo
+#    anómalos que son un ataque. Agruparlos por origen y ventana de tiempo
 #    reduciría la carga del analista mucho más que mejorar el F1.
 # 5. **Reemplazar el umbral fijo** por un método formal de conjunto abierto
-#    (OpenMax, *evidential deep learning*) y comparar contra nuestro $\tau$.
+#    (OpenMax, evidential deep learning) y comparar contra nuestro $\tau$.
 
 # %% [markdown]
 # ---
@@ -2236,7 +2234,7 @@ display(resumen.style.format({"Valor": "{:.4f}"}).hide(axis="index"))
 # - Semilla fija (`SEMILLA = 42`) en ingesta, muestreo, particiones y modelos
 # - Todos los topes de tamaño están en `src/config.py`, en un solo sitio
 # - Las figuras se guardan en `reports/figuras/` al ejecutar
-# - El dataset crudo **no** está en el repositorio (6.4 GB); el script lo baja
+# - El dataset crudo no está en el repositorio (6.4 GB); el script lo baja
 
 # %%
 print("=" * 62)
